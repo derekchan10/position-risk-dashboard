@@ -24,6 +24,7 @@ jobs:
           node scripts/test-level-quality.js
           node scripts/test-setup.js
           node scripts/test-one-click.js
+          node scripts/test-manual-restore.js
           node scripts/test-defaults.js
           node scripts/test-overlay-scroll.js
           node scripts/test-margin-limit.js

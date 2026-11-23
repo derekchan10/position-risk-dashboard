@@ -12,6 +12,13 @@ $('analysis-date').value=ny;$('analysis-date').max=ny;
 function text(tag,t){const e=document.createElement(tag);e.textContent=t;return e;}
 const ratioHelpButtons=[];
 let rows=[],targetSignature='',lastAllocationProfile='',lastAllocationRetain=null,manualPercentages=false,autoRetention=true;
+const manualKey='position-manual-values-v1';
+const contextKey=()=>[$('stock-symbol').value.trim().toUpperCase(),window.PositionRisk.read().side].join(':');
+let manual={context:'',fields:{},rows:null},previousSymbol='';
+function storeManual(){try{localStorage.setItem(manualKey,JSON.stringify(manual));}catch(e){}}
+function resetManual(){manual={context:contextKey(),fields:{},rows:null};manualPercentages=false;autoRetention=true;storeManual();}
+function saveManualPlan(){if(manual.context!==contextKey())resetManual();manual.rows=rows.map(row=>({price:row.p.value,percent:row.percent.value}));manual.retain=retention();manual.autoRetention=autoRetention;manual.manualPercentages=manualPercentages;storeManual();}
+
 function createTargetRow(i){
  const tr=document.createElement('tr'),p=document.createElement('input'),percent=document.createElement('input');
  p.type=percent.type='number';
@@ -20,11 +27,20 @@ function createTargetRow(i){
  const ratioCell=document.createElement('td'),r=text('span','—'),net=text('td','—');r.className='ratio-number';
  const label=text('div','盈亏比'),help=text('button','?');label.className='ratio-label';help.type='button';help.className='help-toggle';help.setAttribute('aria-label',`第${i+1}档盈亏比说明`);help.setAttribute('aria-expanded','false');help.setAttribute('aria-controls','ratio-help');help.setAttribute('popovertarget','ratio-help');ratioHelpButtons.push(help);label.append(help);ratioCell.append(label,r);
  net.setAttribute('data-label','本档预计净收益');for(const input of [p,percent]){const td=document.createElement('td');td.setAttribute('data-label',input===p?`第${i+1}档 · 止盈价格`:'平仓原始仓位');td.append(input);if(input===percent)td.append(text('span','%'));tr.append(td);input.addEventListener('input',()=>{
- if(input===percent){manualPercentages=true;autoRetention=false;const total=rows.reduce((sum,row)=>sum+Number(row.percent.value),0);if(rows.every(row=>row.percent.value!==''&&Number(row.percent.value)>=0)&&Number.isFinite(total)&&total<=100+1e-8){$('retain-position').value=String(Math.max(0,Math.round((100-total)*100)/100));$('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');}}
- renderPlan();renderSetupObservation();renderRetentionMode();savePlan();});}tr.append(ratioCell,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
+ manualPercentages=true;autoRetention=false;
+ if(input===percent){const total=rows.reduce((sum,row)=>sum+Number(row.percent.value),0);if(rows.every(row=>row.percent.value!==''&&Number(row.percent.value)>=0)&&Number.isFinite(total)&&total<=100+1e-8){$('retain-position').value=String(Math.max(0,Math.round((100-total)*100)/100));$('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');}}
+ renderPlan();renderSetupObservation();renderRetentionMode();savePlan();saveManualPlan();});}tr.append(ratioCell,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
 }
 function savePlan(){try{localStorage.setItem('profit-plan-week-v1',JSON.stringify({rows:rows.map(x=>({price:x.p.value,percent:x.percent.value})),symbol:$('stock-symbol').value,date:$('analysis-date').value,style:$('plan-style').value,buffer:buffer(),retain:retention(),autoRetention}));}catch(e){}}
 try{const saved=JSON.parse(localStorage.getItem('profit-plan-week-v1')||'null');if(saved){autoRetention=saved.autoRetention!==false;if(saved.retain!==undefined&&Number.isFinite(Number(saved.retain)))$('retain-position').value=String(Math.min(100,Math.max(0,Number(saved.retain))));if([.1,.2,.3].includes(Number(saved.buffer)))$('stop-buffer').value=String(saved.buffer);$('stock-symbol').value=saved.symbol||'NVDA';if(saved.date&&saved.date<=ny)$('analysis-date').value=saved.date;$('plan-style').value='week';}}catch(e){}
+// Restore only the same instrument and direction; never carry another trade's prices.
+try{const saved=JSON.parse(localStorage.getItem(manualKey)||'null');if(saved?.context===contextKey()&&saved.fields&&typeof saved.fields==='object'){
+ manual=saved;
+ for(const id of ['entry','stop','risk','marginLimit'])if(Object.hasOwn(saved.fields,id))$(id).value=String(saved.fields[id]);
+ if(Array.isArray(saved.rows)){manualPercentages=!!saved.manualPercentages;autoRetention=saved.autoRetention!==false;if(Number.isFinite(Number(saved.retain)))$('retain-position').value=String(saved.retain);}
+ refreshSizing();
+}else resetManual();}catch(e){resetManual();}
+previousSymbol=$('stock-symbol').value.trim().toUpperCase();
 function current(){const s=window.PositionRisk.read();return {s,r:window.PositionRisk.calculate(s)};}
 function renderSnapshot(){
  const s=window.PositionRisk.read(),short=s.side==='short';
@@ -187,10 +203,10 @@ async function loadStock(options={}){
  if(authorized!==true){authorizationHint();renderPlan();return;}
  const autoPrices=options.autoPrices===true||!$('entry').value||!$('stop').value||priceBinding!==$('stock-symbol').value.trim().toUpperCase();
  const requestId=++requestVersion;controller=new AbortController();
- busy=true;$('market-error').textContent='';$('market-status').textContent=autoPrices?'正在获取新股票报价与近期低点…':'正在读取日线…';market=null;analysis=null;adoptTargets();$('market-results').hidden=true;$('target-table').hidden=true;$('profit-note').hidden=true;
+ busy=true;$('restore-market').disabled=true;$('market-error').textContent='';$('market-status').textContent=autoPrices?'正在获取新股票报价与近期低点…':'正在读取日线…';market=null;analysis=null;adoptTargets();$('market-results').hidden=true;$('target-table').hidden=true;$('profit-note').hidden=true;
  const symbol=$('stock-symbol').value.trim().toUpperCase(),entryBefore=$('entry').value,stopBefore=$('stop').value,sideBefore=window.PositionRisk.read().side;
  try{
-  if(!autoPrices&&!pendingBuffer)current();await backendReady;
+  await backendReady;
   if(!/^[A-Z][A-Z0-9.-]{0,14}$/.test(symbol))throw Error('请输入有效美股代码。');$('stock-symbol').value=symbol;
   if(autoPrices)$('analysis-date').value=ny;
   const requestedDate=$('analysis-date').value;
@@ -200,38 +216,44 @@ async function loadStock(options={}){
   if(!response.ok){if(j.needsAuth)await futuStatus();throw Error(j.error||'富途行情读取失败');}
   if($('stock-symbol').value.trim().toUpperCase()!==symbol||$('analysis-date').value!==requestedDate)throw Error('股票或日期已改变，请重新生成。');
   const responseSide=window.PositionRisk.read().side;
-  if(autoPrices||pendingEntryReset){
-   if($('entry').value!==entryBefore||$('stop').value!==stopBefore)throw Error('你已手动修改价格，本次自动填价已取消，请重新生成。');
-   const defaults=TradePlanner.priceDefaults(j,responseSide,buffer());$('entry').value=Number(defaults.entry).toFixed(2);$('stop').value=defaults.stop===null?'':Number(defaults.stop).toFixed(2);priceBinding=symbol;pendingEntryReset=false;
+  if(autoPrices||pendingEntryReset||options.restoreMarket){
+
+   const defaults=TradePlanner.priceDefaults(j,responseSide,buffer());const keep=manual.context===contextKey()?manual.fields:{};if(!Object.hasOwn(keep,'entry'))$('entry').value=Number(defaults.entry).toFixed(2);if(!options.restoreMarket&&!Object.hasOwn(keep,'stop'))$('stop').value=defaults.stop===null?'':Number(defaults.stop).toFixed(2);priceBinding=symbol;pendingEntryReset=false;
    const qt=j.quote?.time?beijingTime(j.quote.time):'仅提供美股交易日 '+(j.quote?.date||'未提供');
    $('auto-price-note').textContent=`止损参考：近10日${responseSide==='short'?'高点＋':'低点－'}${buffer()} ATR${buffer()===.1?'（较小缓冲）':''}，可手动调整。`;$('auto-price-note').title=`报价时间 ${qt}；近期极值 ${price(defaults.base)}；区间 ${defaults.from} 至 ${defaults.to}`;
    refreshSizing();
-   if(defaults.stop===null)throw Error('近期极值不在正确止损方向，请根据结构手动填写止损；不会沿用旧股票价格。');
+   if(Object.hasOwn(manual.fields,'entry')||Object.hasOwn(manual.fields,'stop'))$('auto-price-note').textContent='已保留手动交易价格；行情更新不覆盖。';
+   if(!options.restoreMarket&&defaults.stop===null&&!Object.hasOwn(manual.fields,'stop'))throw Error('近期极值不在正确止损方向，请根据结构手动填写止损；不会沿用旧股票价格。');
   }
   market=j;if(pendingBuffer){pendingBuffer=false;applyBuffer();}renderSnapshot();renderAnalysis();savePlan();
  }catch(e){if(requestId!==requestVersion||e.name==='AbortError')return;$('market-error').textContent=e.message;$('market-status').textContent='参考待更新 · 行情未就绪';}
- finally{if(requestId===requestVersion){busy=false;}}
+ finally{if(requestId===requestVersion){busy=false;$('restore-market').disabled=authorized!==true;}}
 }
 function adoptTargets(){
+ const savedRows=manual.context===contextKey()&&Array.isArray(manual.rows)?manual.rows.slice(0,3):null;
+ if(analysis&&savedRows){
+  const dir=analysis.side==='short'?-1:1,s=window.PositionRisk.read();
+  analysis.targets=savedRows.map((row,i)=>{const value=Number(row.price),old=analysis.targets[i];return {...old,target:value,low:value,high:value,r:dir*(value-s.entry)/Math.abs(s.entry-s.stop),atrDistance:Math.abs(value-s.entry)/analysis.atr,labels:['手动止盈 · 用户自定价格'],quality:'手动计划'};});
+ }
  if(autoRetention)$('retain-position').value=String(analysis?.setup?.suggestedRetain||0);
  const profile=analysis?.setup?.profile||'pyramid';
  const targets=analysis?.targets||[],key=JSON.stringify([market?.symbol,analysis?.side,analysis?.date,targets.map(z=>z.target.toFixed(2))]);
  if(key!==targetSignature){
-  targetSignature=key;manualPercentages=false;$('take-profit-rows').replaceChildren();ratioHelpButtons.length=0;
+  targetSignature=key;if(!savedRows)manualPercentages=false;$('take-profit-rows').replaceChildren();ratioHelpButtons.length=0;
   const percentages=TradePlanner.setupPercentages(targets.length,retention(),profile);
   rows=targets.map((z,i)=>{const row=createTargetRow(i);row.p.value=z.target.toFixed(2);
-   row.percent.value=String(percentages[i]);return row;});
- }else if((profile!==lastAllocationProfile||retention()!==lastAllocationRetain)&&!manualPercentages){const percentages=TradePlanner.setupPercentages(rows.length,retention(),profile);rows.forEach((row,i)=>{row.percent.value=String(percentages[i]);});}
+   row.percent.value=savedRows?savedRows[i].percent:String(percentages[i]);if(savedRows)row.p.value=savedRows[i].price;return row;});
+ }else if(!savedRows&&(profile!==lastAllocationProfile||retention()!==lastAllocationRetain)&&!manualPercentages){const percentages=TradePlanner.setupPercentages(rows.length,retention(),profile);rows.forEach((row,i)=>{row.percent.value=String(percentages[i]);});}
  lastAllocationProfile=profile;lastAllocationRetain=retention();renderSetupObservation();renderRetentionMode();
  $('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');
- $('target-count').textContent=targets.length?`${targets.length}档候选 · 比例可调整`:'';
+ $('target-count').textContent=targets.length?`${targets.length}档${savedRows?'手动计划':'候选'} · 比例可调整`:'';
  renderPlan();savePlan();
 }
 async function futuStatus(autoSelect=false){
  const local=location.origin==='http://localhost:8768'||(location.hostname.endsWith('.workers.dev')||location.hostname==='cw-position-helper.pages.dev'||location.hostname==='cw.dcdddd.com');
  $('futu-connect').hidden=!local;$('futu-disconnect').hidden=true;
  if(!local){$('futu-status').replaceChildren(text('span','富途线上版已启用。请在 HTTPS 入口连接授权：'));const link=document.createElement('a');link.href='https://cw-futu-backend.dchan0831.workers.dev';link.textContent='打开富途线上看板';link.target='_blank';link.rel='noopener noreferrer';$('futu-status').append(link);return;}
- try{const r=await fetch('/auth/status'),j=await r.json();cloudBackend=j.cloud===true;authorized=j.connected===true;$('futu-status').textContent=j.connected?(cloudBackend?'已连接富途云端 · 只读行情':'已连接富途 · 只读行情'):'请先授权富途行情；授权后自动读取报价和生成止盈建议。';$('futu-connect').hidden=j.connected;$('futu-disconnect').hidden=!j.connected;$('futu-panel').hidden=false;renderPlan();authorizationHint();return j.connected;}catch(e){$('futu-status').textContent='本机授权服务暂不可用。';}
+ try{const r=await fetch('/auth/status'),j=await r.json();cloudBackend=j.cloud===true;authorized=j.connected===true;$('restore-market').disabled=!authorized;$('futu-status').textContent=j.connected?(cloudBackend?'已连接富途云端 · 只读行情':'已连接富途 · 只读行情'):'请先授权富途行情；授权后自动读取报价和生成止盈建议。';$('futu-connect').hidden=j.connected;$('futu-disconnect').hidden=!j.connected;$('futu-panel').hidden=false;renderPlan();authorizationHint();return j.connected;}catch(e){$('futu-status').textContent='本机授权服务暂不可用。';}
 }
 
 $('futu-connect').addEventListener('click',async()=>{try{$('futu-connect').disabled=true;const r=await fetch('/auth/start',{method:'POST'}),j=await r.json();if(!r.ok)throw Error(j.error);const url=new URL(j.url);if(url.origin!=='https://webapi.futunn.com')throw Error('授权地址无效');location.assign(url.href);}catch(e){$('futu-status').textContent=e.message;$('futu-connect').disabled=false;}});
@@ -240,16 +262,18 @@ backendReady=futuStatus(true);
 backendReady.then(connected=>{if(connected&&!busy)loadStock({autoPrices:true});});
 
 $('stock-symbol').addEventListener('input',()=>{
+ const symbol=$('stock-symbol').value.trim().toUpperCase();if(symbol===previousSymbol)return;previousSymbol=symbol;resetManual();
  clearTimeout(autoTimer);requestVersion++;controller?.abort();busy=false;priceBinding=null;market=null;analysis=null;adoptTargets();$('market-results').hidden=true;$('target-table').hidden=true;$('profit-note').hidden=true;
  $('entry').value='';$('stop').value='';refreshSizing();$('error').textContent='';$('plan-error').textContent='';$('plan-trade-context').textContent='等待新股票报价';$('auto-price-note').textContent='切换股票后自动获取新报价及止损参考，亏损预算保持不变。';$('market-status').textContent='等待股票代码输入完成…';$('market-error').textContent='';
  if(/^[A-Z][A-Z0-9.-]{0,14}$/.test($('stock-symbol').value.trim().toUpperCase()))autoTimer=setTimeout(()=>loadStock({autoPrices:true}),900);
 });
+$('restore-market').addEventListener('click',()=>{if(busy)return;delete manual.fields.entry;storeManual();return loadStock({restoreMarket:true});});
 $('stock-symbol').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(autoTimer);loadStock({autoPrices:true});}});
-for(const id of ['entry','stop']){
+for(const id of ['entry','stop','risk','marginLimit']){
  const field=$(id);
  const format=()=>{if(field.value!==''&&Number.isFinite(Number(field.value)))field.value=Number(field.value).toFixed(2);};
- format();field.addEventListener('blur',format);
- if(id!=='liquidation')field.addEventListener('input',()=>{priceBinding=$('stock-symbol').value.trim().toUpperCase();});
+ if(id==='entry'||id==='stop'){format();field.addEventListener('blur',format);}
+ field.addEventListener('input',event=>{if(event?.isTrusted===false)return;if(manual.context!==contextKey())resetManual();manual.fields[id]=field.value;storeManual();if(id==='entry'||id==='stop')priceBinding=$('stock-symbol').value.trim().toUpperCase();});
 }
 
 function applyBuffer(){
@@ -264,21 +288,21 @@ function applyBuffer(){
  }catch(e){$('market-error').textContent=e.message;}
 }
 function renderRetentionMode(){$('retain-auto').textContent=autoRetention?'自动':'恢复自动';$('retain-auto').disabled=autoRetention;$('retain-auto').setAttribute('aria-pressed',String(autoRetention));}
-$('retain-auto').addEventListener('click',()=>{autoRetention=true;manualPercentages=false;lastAllocationProfile='';adoptTargets();});
+$('retain-auto').addEventListener('click',()=>{manual.rows=null;delete manual.retain;manual.manualPercentages=false;manual.autoRetention=true;storeManual();autoRetention=true;manualPercentages=false;lastAllocationProfile='';adoptTargets();});
 $('retain-position').addEventListener('input',()=>{
  autoRetention=false;
  $('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');
  const percentages=TradePlanner.setupPercentages(rows.length,retention(),analysis?.setup?.profile||'pyramid');
  rows.forEach((row,i)=>{row.percent.value=String(percentages[i]);});manualPercentages=false;
- renderPlan();renderSetupObservation();renderRetentionMode();savePlan();
+ renderPlan();renderSetupObservation();renderRetentionMode();savePlan();saveManualPlan();
 });
-$('stop-buffer').addEventListener('change',()=>{savePlan();applyBuffer();});
+$('stop-buffer').addEventListener('change',()=>{delete manual.fields.stop;storeManual();savePlan();applyBuffer();});
 $('max-target-atr').addEventListener('change',renderAnalysis);
 $('analysis-date').addEventListener('change',()=>{savePlan();return loadStock();});
 window.addEventListener('trade-input-change',()=>{
  const side=window.PositionRisk.read().side;
  if(side!==previousSide){
-  previousSide=side;
+  previousSide=side;resetManual();
   const quote=Number(market?.quote?.price);
   if(market&&Number.isFinite(quote)&&quote>0){
    $('entry').value=quote.toFixed(2);priceBinding=$('stock-symbol').value.trim().toUpperCase();

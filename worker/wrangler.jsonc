@@ -5,5 +5,5 @@
   "workers_dev": true,
   "assets": {"directory": "../_worker-site", "binding": "ASSETS", "run_worker_first": ["/auth/*", "/api/*"]},
   "observability": {"enabled": false},
-  "kv_namespaces": [{"binding": "SESSIONS", "id": "REPLACE_AFTER_CREATE"}]
+  "kv_namespaces": [{"binding": "SESSIONS", "id": "484f375d10b44101b7b08671818a84a7"}]
 }

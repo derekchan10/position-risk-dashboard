@@ -73,7 +73,7 @@ $('apply-targets').addEventListener('click',()=>{
 async function futuStatus(){
  const local=location.origin==='http://localhost:8768'||location.hostname.endsWith('.workers.dev');
  $('futu-connect').hidden=!local;$('futu-disconnect').hidden=true;
- if(!local){$('futu-status').textContent='在这台电脑运行 python3 scripts/futu_bridge.py，然后打开 http://localhost:8768 连接富途。在线版暂不承接授权。';return;}
+ if(!local){$('futu-status').replaceChildren(text('span','富途线上版已启用。请在 HTTPS 入口连接授权：'));const link=document.createElement('a');link.href='https://cw-futu-backend.dchan0831.workers.dev';link.textContent='打开富途线上看板';link.target='_blank';link.rel='noopener noreferrer';$('futu-status').append(link);return;}
  try{const r=await fetch('/auth/status'),j=await r.json();cloudBackend=j.cloud===true;$('futu-status').textContent=j.connected?(cloudBackend?'已连接富途云端 · 只读行情':'已连接富途 · 只读行情'):'尚未连接，点击下方按钮前往富途官方页面授权。';$('futu-connect').hidden=j.connected;$('futu-disconnect').hidden=!j.connected;if(j.connected){$('market-source').value='futu';$('futu-panel').hidden=false;}}catch(e){$('futu-status').textContent='本机授权服务暂不可用。';}
 }
 $('market-source').addEventListener('change',()=>{market=null;analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;$('futu-panel').hidden=$('market-source').value!=='futu';futuStatus();});

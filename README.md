@@ -49,3 +49,10 @@ GitHub Pages 选择 Deploy from a branch，分支 main，目录 / (root)。
 Worker 同时提供 HTTPS 看板入口，Pages 保持原入口，通过链接进入线上富途版。
 首次在线使用需要重新在富途授权；本机授权不会自动上传。
 测试：`node scripts/test-worker.mjs`。免费配额用尽会停止服务，不自动升级付费。
+
+线上入口：https://cw-futu-backend.dchan0831.workers.dev
+
+已部署 KV 会话存储与 Worker 加密密钥；密钥只存在 Cloudflare Secret 中。
+更新 Worker：`sh scripts/package-worker.sh` 后执行
+`npx wrangler@4 deploy --config worker/wrangler.jsonc`。
+不要重复生成加密密钥，否则现有会话将无法解密。

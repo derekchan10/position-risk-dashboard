@@ -9,7 +9,7 @@ const rows=[0,1].map((_,i)=>{
  const tr=document.createElement('tr'),p=document.createElement('input'),percent=document.createElement('input');
  p.type=percent.type='number';percent.readOnly=true;p.min='0';p.step='any';percent.min='0';percent.max='100';percent.step='any';
  p.setAttribute('aria-label',`第${i+1}档止盈价格`);percent.setAttribute('aria-label',`第${i+1}档卖出比例，百分比`);p.placeholder='价格';percent.placeholder='%';
- const r=text('td','—'),net=text('td','—');for(const input of [p,percent]){const td=document.createElement('td');td.append(input);tr.append(td);input.addEventListener('input',()=>{renderPlan();savePlan();});}tr.append(r,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
+ const r=text('td','—'),net=text('td','—');for(const input of [p,percent]){const td=document.createElement('td');td.append(input);tr.append(td);input.addEventListener('input',()=>{if(input===p)percent.value=p.value?([40,30][i]):'';renderPlan();savePlan();});}tr.append(r,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
 });
 function savePlan(){try{localStorage.setItem('profit-plan-week-v1',JSON.stringify({rows:rows.map(x=>({price:x.p.value,percent:x.percent.value})),symbol:$('stock-symbol').value,date:$('analysis-date').value,style:$('plan-style').value}));}catch(e){}}
 try{const saved=JSON.parse(localStorage.getItem('profit-plan-week-v1')||'null');if(saved){saved.rows?.slice(0,3).forEach((x,i)=>{rows[i].p.value=x.price;rows[i].percent.value=x.percent;});$('stock-symbol').value=saved.symbol||'NVDA';if(saved.date&&saved.date<=ny)$('analysis-date').value=saved.date;$('plan-style').value='week';}}catch(e){}
@@ -91,16 +91,16 @@ async function loadStock(){
 $('apply-targets').addEventListener('click',()=>{
  try{const {s}=current();if(!analysis||signature!==JSON.stringify([s.entry,s.stop,s.side,$('analysis-date').value]))throw Error('交易参数已变化，请重新分析。');const weights=[40,30];rows.forEach((x,i)=>{x.p.value=analysis.targets[i]?analysis.targets[i].target.toFixed(2):'';x.percent.value=analysis.targets[i]?weights[i]:'';});renderPlan();savePlan();}catch(e){$('plan-error').textContent=e.message;}
 });
-async function futuStatus(){
+async function futuStatus(autoSelect=false){
  const local=location.origin==='http://localhost:8768'||location.hostname.endsWith('.workers.dev');
  $('futu-connect').hidden=!local;$('futu-disconnect').hidden=true;
  if(!local){$('futu-status').replaceChildren(text('span','富途线上版已启用。请在 HTTPS 入口连接授权：'));const link=document.createElement('a');link.href='https://cw-futu-backend.dchan0831.workers.dev';link.textContent='打开富途线上看板';link.target='_blank';link.rel='noopener noreferrer';$('futu-status').append(link);return;}
- try{const r=await fetch('/auth/status'),j=await r.json();cloudBackend=j.cloud===true;$('futu-status').textContent=j.connected?(cloudBackend?'已连接富途云端 · 只读行情':'已连接富途 · 只读行情'):'尚未连接，点击下方按钮前往富途官方页面授权。';$('futu-connect').hidden=j.connected;$('futu-disconnect').hidden=!j.connected;if(j.connected){$('market-source').value='futu';$('futu-panel').hidden=false;}}catch(e){$('futu-status').textContent='本机授权服务暂不可用。';}
+ try{const r=await fetch('/auth/status'),j=await r.json();cloudBackend=j.cloud===true;$('futu-status').textContent=j.connected?(cloudBackend?'已连接富途云端 · 只读行情':'已连接富途 · 只读行情'):'尚未连接，点击下方按钮前往富途官方页面授权。';$('futu-connect').hidden=j.connected;$('futu-disconnect').hidden=!j.connected;if(j.connected&&(autoSelect||$('market-source').value==='futu')){$('market-source').value='futu';$('futu-panel').hidden=false;}}catch(e){$('futu-status').textContent='本机授权服务暂不可用。';}
 }
 $('market-source').addEventListener('change',()=>{market=null;analysis=null;renderTrailing();$('market-results').hidden=true;$('apply-targets').disabled=true;$('futu-panel').hidden=$('market-source').value!=='futu';futuStatus();});
 $('futu-connect').addEventListener('click',async()=>{try{$('futu-connect').disabled=true;const r=await fetch('/auth/start',{method:'POST'}),j=await r.json();if(!r.ok)throw Error(j.error);const url=new URL(j.url);if(url.origin!=='https://webapi.futunn.com')throw Error('授权地址无效');location.assign(url.href);}catch(e){$('futu-status').textContent=e.message;$('futu-connect').disabled=false;}});
 $('futu-disconnect').addEventListener('click',async()=>{const r=await fetch('/auth/disconnect',{method:'POST'});if(r.ok){market=null;analysis=null;renderTrailing();$('market-results').hidden=true;$('apply-targets').disabled=true;await futuStatus();}});
-futuStatus();
+futuStatus(true);
 $('analyze-stock').addEventListener('click',loadStock);
 $('stock-symbol').addEventListener('input',()=>{market=null;analysis=null;renderTrailing();$('market-results').hidden=true;$('apply-targets').disabled=true;$('market-status').textContent='代码已更改，请点击分析。';});
 $('max-target-atr').addEventListener('change',renderAnalysis);

@@ -48,7 +48,7 @@ function rsiSeries(bars,period=14){
 function setupAssessment(data,date,analysis,maxATR=4){
  const bars=data.bars.filter(b=>b.date<date).sort((a,b)=>a.date.localeCompare(b.date)),short=analysis.side==='short',dir=short?-1:1;
  const names=short?['超涨背景','已回落','剩余空间']:['超跌背景','已反弹','剩余空间'];
- const fallback={names,extent:'数据不足',progress:'待更新',space:'待确认',profile:'observe',profileLabel:'仅作预案',reason:'不足24根完整日线，保留原分配方式；不影响开仓筛选。',facts:[],lastDate:bars.at(-1)?.date||'',applicable:false};
+ const fallback={names,extent:'数据不足',progress:'待更新',space:'待确认',profile:'observe',profileLabel:'仅作预案',reason:'不足24根完整日线，保留原分配方式；不影响开仓筛选。',facts:[],lastDate:bars.at(-1)?.date||'',applicable:false,suggestedRetain:0};
  if(bars.length<24)return fallback;
  const last=bars.at(-1),atr=wilderATR(bars),rsis=rsiSeries(bars),rsi=rsis.at(-1),extremeRSI=(short?Math.max:Math.min)(...rsis.slice(-10).filter(Number.isFinite));
  let quoteDate=String(data.quote?.date||'').replace(/^(\d{4})(\d{2})(\d{2})$/,'$1-$2-$3');
@@ -68,7 +68,8 @@ function setupAssessment(data,date,analysis,maxATR=4){
  else if(stretchSignals>=2&&near.r>=2&&recoveryDistance>=0&&recoveryATR!==null&&recoveryATR<=1&&remainingATR!==null&&remainingATR>=1){profile='balanced';profileLabel='均衡兑现';reason='前期超跌／超涨较明显，尚未远离近期极值，前方目标也有空间，参考均衡分配；不据此预测反弹强度。';}
  else if(recoveryDistance<0||stretchSignals===0||recoveryATR!==null&&recoveryATR>=2||remainingATR!==null&&remainingATR<1){profile='defensive';profileLabel='偏早兑现';reason=recoveryDistance<0?'报价已越过此前极值，历史背景可能继续变化，比例只参考偏早兑现，不作止跌判断。':recoveryATR!==null&&recoveryATR>=2?'已经反弹／回落至少2个日线ATR，优先兑现近处目标，避免把前期超跌当成尚未兑现的空间。':remainingATR!==null&&remainingATR<1?'距最近目标不足1个日线ATR，参考近处多平、远处少平。':'超跌／超涨背景不明显，比例参考偏早兑现，不额外押注远处目标。';}
  const n=value=>Number.isFinite(value)?Number(value.toFixed(2)):null;
- return {names,extent:stale?'数据较旧':extent,progress:stale?'待更新':recoveryDistance<0?(short?'尚未回落':'尚未反弹'):n(recoveryPercent)+'%',space,profile,profileLabel,reason,lastDate:last.date,referenceLabel,referenceTime:useQuote?Number(data.quote.time)||null:null,applicable:!stale&&eligible&&!crossed,
+ const suggestedRetain=!stale&&eligible&&!crossed&&stretchSignals>=2&&recoveryDistance>=0&&recoveryATR!==null&&recoveryATR<2&&remainingATR!==null&&remainingATR>=1?20:0;
+ return {names,suggestedRetain,extent:stale?'数据较旧':extent,progress:stale?'待更新':recoveryDistance<0?(short?'尚未回落':'尚未反弹'):n(recoveryPercent)+'%',space,profile,profileLabel,reason,lastDate:last.date,referenceLabel,referenceTime:useQuote?Number(data.quote.time)||null:null,applicable:!stale&&eligible&&!crossed,
  metrics:{rsi:n(rsi),extremeRSI:n(extremeRSI),change5:n(change5),excursionATR:n(excursionATR),stretchSignals,reference:n(reference),recoveryATR:n(recoveryATR),recoveryPercent:n(recoveryPercent),remainingATR:n(remainingATR),crossed,useQuote},
  facts:[`历史日线截至 ${last.date}：RSI(14) ${n(rsi)}，近10日${short?'最高':'最低'}RSI ${n(extremeRSI)}；这是历史背景，不是当前盘中确认。`,`此前5日收盘涨跌 ${n(change5)}%；距20日${short?'低':'高'}点 ${n(excursionATR)} ATR。`,`${referenceLabel} ${reference.toFixed(2)}；相对近10日${short?'高':'低'}点 ${extreme.toFixed(2)}，已${short?'回落':'反弹'} ${n(recoveryPercent)}%（${n(recoveryATR)} ATR）。`,useQuote?'行情报价仅用于衡量已反弹／回落的位置，没有伪造当天完整日线或RSI。':'没有同分析日的有效报价，使用计划价／完整日收盘价；未使用未来日期报价。',forward?`到前方计划目标 ${forward.target.toFixed(2)} 剩余 ${remainingDistance.toFixed(2)} 美元（${n(remainingATR)} ATR）。`:'没有尚未越过的计划目标。','止跌／滞涨形态、突破确认和成交量不参与本模块的比例选择，也不改变开仓判断。']};
 }

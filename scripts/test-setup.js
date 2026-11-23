@@ -2,9 +2,9 @@ const assert=require('node:assert/strict'),P=require('../planner.js');
 function bars(closes){return closes.map((close,i)=>({date:new Date(Date.UTC(2026,0,i+1)).toISOString().slice(0,10),open:close-.2,high:close+.5,low:close-.5,close,volume:100}));}
 const zones=[105,110,115].map(target=>({low:target,high:target,target,r:2.5,atrDistance:2})),a={side:'long',entry:86,stop:80,zones,targets:zones};
 const decline={bars:bars(Array.from({length:35},(_,i)=>120-i))};
-const lowEntry=P.setupAssessment(decline,'2026-02-05',a);assert.equal(lowEntry.extent,'历史明显');assert.equal(lowEntry.profile,'balanced');assert(!('confirmation' in lowEntry));
-const live={...decline,quote:{price:94,date:'20260205'}},afterBounce=P.setupAssessment(live,'2026-02-05',a);assert(afterBounce.metrics.useQuote);assert.equal(afterBounce.metrics.reference,94);assert(afterBounce.metrics.recoveryATR>=2);assert.equal(afterBounce.profile,'defensive');
-const crossed=P.setupAssessment({...decline,quote:{price:108,date:'2026-02-05'}},'2026-02-05',a);assert(crossed.metrics.crossed);assert.equal(crossed.space,'目标已越过');assert.equal(crossed.profile,'observe');
+const lowEntry=P.setupAssessment(decline,'2026-02-05',a);assert.equal(lowEntry.extent,'历史明显');assert.equal(lowEntry.profile,'balanced');assert.equal(lowEntry.suggestedRetain,20);assert(!('confirmation' in lowEntry));
+const live={...decline,quote:{price:94,date:'20260205'}},afterBounce=P.setupAssessment(live,'2026-02-05',a);assert(afterBounce.metrics.useQuote);assert.equal(afterBounce.metrics.reference,94);assert(afterBounce.metrics.recoveryATR>=2);assert.equal(afterBounce.profile,'defensive');assert.equal(afterBounce.suggestedRetain,0);
+const crossed=P.setupAssessment({...decline,quote:{price:108,date:'2026-02-05'}},'2026-02-05',a);assert(crossed.metrics.crossed);assert.equal(crossed.space,'目标已越过');assert.equal(crossed.profile,'observe');assert.equal(crossed.suggestedRetain,0);
 const missingVolume={bars:decline.bars.map(({volume,...bar})=>bar)},hugeVolume={bars:decline.bars.map(bar=>({...bar,volume:99999999}))};assert.deepEqual(P.setupAssessment(missingVolume,'2026-02-05',a),lowEntry);assert.deepEqual(P.setupAssessment(hugeVolume,'2026-02-05',a),lowEntry);
 const cramped=P.setupAssessment(decline,'2026-02-05',{...a,zones:[{...zones[0],r:1.2}],targets:[]});assert.equal(cramped.space,'空间不足');assert.equal(cramped.profile,'observe');
 const distant=P.setupAssessment(decline,'2026-02-05',{...a,zones:[{...zones[0],atrDistance:5}],targets:[]});assert.equal(distant.space,'目标偏远');

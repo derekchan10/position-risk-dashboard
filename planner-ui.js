@@ -10,7 +10,7 @@ const now=new Date(),ny=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_Y
 $('analysis-date').value=ny;$('analysis-date').max=ny;
 function text(tag,t){const e=document.createElement(tag);e.textContent=t;return e;}
 const ratioHelpButtons=[];
-let rows=[],targetSignature='',lastAllocationProfile='',manualPercentages=false;
+let rows=[],targetSignature='',lastAllocationProfile='',lastAllocationRetain=null,manualPercentages=false,autoRetention=true;
 function createTargetRow(i){
  const tr=document.createElement('tr'),p=document.createElement('input'),percent=document.createElement('input');
  p.type=percent.type='number';
@@ -19,11 +19,11 @@ function createTargetRow(i){
  const ratioCell=document.createElement('td'),r=text('span','—'),net=text('td','—');r.className='ratio-number';
  const label=text('div','盈亏比'),help=text('button','?');label.className='ratio-label';help.type='button';help.className='help-toggle';help.setAttribute('aria-label',`第${i+1}档盈亏比说明`);help.setAttribute('aria-expanded','false');help.setAttribute('aria-controls','ratio-help');help.setAttribute('popovertarget','ratio-help');ratioHelpButtons.push(help);label.append(help);ratioCell.append(label,r);
  net.setAttribute('data-label','本档预计净收益');for(const input of [p,percent]){const td=document.createElement('td');td.setAttribute('data-label',input===p?`第${i+1}档 · 止盈价格`:'平仓原始仓位');td.append(input);if(input===percent)td.append(text('span','%'));tr.append(td);input.addEventListener('input',()=>{
- if(input===percent){manualPercentages=true;const total=rows.reduce((sum,row)=>sum+Number(row.percent.value),0);if(rows.every(row=>row.percent.value!==''&&Number(row.percent.value)>=0)&&Number.isFinite(total)&&total<=100+1e-8){$('retain-position').value=String(Math.max(0,Math.round((100-total)*100)/100));$('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');}}
- renderPlan();renderSetupObservation();savePlan();});}tr.append(ratioCell,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
+ if(input===percent){manualPercentages=true;autoRetention=false;const total=rows.reduce((sum,row)=>sum+Number(row.percent.value),0);if(rows.every(row=>row.percent.value!==''&&Number(row.percent.value)>=0)&&Number.isFinite(total)&&total<=100+1e-8){$('retain-position').value=String(Math.max(0,Math.round((100-total)*100)/100));$('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');}}
+ renderPlan();renderSetupObservation();renderRetentionMode();savePlan();});}tr.append(ratioCell,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
 }
-function savePlan(){try{localStorage.setItem('profit-plan-week-v1',JSON.stringify({rows:rows.map(x=>({price:x.p.value,percent:x.percent.value})),symbol:$('stock-symbol').value,date:$('analysis-date').value,style:$('plan-style').value,buffer:buffer(),retain:retention()}));}catch(e){}}
-try{const saved=JSON.parse(localStorage.getItem('profit-plan-week-v1')||'null');if(saved){if(saved.retain!==undefined&&Number.isFinite(Number(saved.retain)))$('retain-position').value=String(Math.min(100,Math.max(0,Number(saved.retain))));if([.1,.2,.3].includes(Number(saved.buffer)))$('stop-buffer').value=String(saved.buffer);$('stock-symbol').value=saved.symbol||'NVDA';if(saved.date&&saved.date<=ny)$('analysis-date').value=saved.date;$('plan-style').value='week';}}catch(e){}
+function savePlan(){try{localStorage.setItem('profit-plan-week-v1',JSON.stringify({rows:rows.map(x=>({price:x.p.value,percent:x.percent.value})),symbol:$('stock-symbol').value,date:$('analysis-date').value,style:$('plan-style').value,buffer:buffer(),retain:retention(),autoRetention}));}catch(e){}}
+try{const saved=JSON.parse(localStorage.getItem('profit-plan-week-v1')||'null');if(saved){autoRetention=saved.autoRetention!==false;if(saved.retain!==undefined&&Number.isFinite(Number(saved.retain)))$('retain-position').value=String(Math.min(100,Math.max(0,Number(saved.retain))));if([.1,.2,.3].includes(Number(saved.buffer)))$('stop-buffer').value=String(saved.buffer);$('stock-symbol').value=saved.symbol||'NVDA';if(saved.date&&saved.date<=ny)$('analysis-date').value=saved.date;$('plan-style').value='week';}}catch(e){}
 function current(){const s=window.PositionRisk.read();return {s,r:window.PositionRisk.calculate(s)};}
 function renderSnapshot(){
  const s=window.PositionRisk.read(),short=s.side==='short';
@@ -150,6 +150,7 @@ function renderPriceChart(s){
  for(const index of [0,Math.floor((bars.length-1)/2),bars.length-1])svg+=`<text x="${x(index)}" y="${height-15}" text-anchor="middle" font-size="11" fill="currentColor">${safeDate(bars[index].date)}</text>`;
  svg+='</svg>';$('price-chart').innerHTML=svg;$('chart-focus').textContent='点击右侧价位标记，查看来源与日期。';
  $('chart-legend').replaceChildren(text('div','绿色K线：收盘高于开盘；红色K线：收盘低于开盘。黄色带：历史候选压力／支撑区。右侧标签与对应价位连线。'),text('div','净收益按填写费用计算，假设该档成交，未计滑点；历史价位不保证有效。修改平仓比例后，图中收益同步更新。'));
+ const retained=100-rows.reduce((sum,row)=>sum+Number(row.percent.value),0);if(Number.isFinite(retained)&&retained>0)$('chart-legend').append(text('div',`预留 ${f(retained)}%：移出固定止盈档继续持有，仍沿用本笔止损参考，余仓后续收益未计入本图。`));
  if(analysis.setup)$('chart-legend').append(text('div',`${analysis.side==='short'?'回落':'反弹'}观察：${analysis.setup.extent} · ${analysis.setup.progress} · ${analysis.setup.space}；${analysis.setup.profileLabel}，仅按 ${analysis.setup.lastDate} 及之前完整日线判断。`));
 }
 function inspectChart(event){
@@ -193,6 +194,7 @@ async function loadStock(options={}){
  finally{if(requestId===requestVersion){busy=false;}}
 }
 function adoptTargets(){
+ if(autoRetention)$('retain-position').value=String(analysis?.setup?.suggestedRetain||0);
  const profile=analysis?.setup?.profile||'pyramid';
  const targets=analysis?.targets||[],key=JSON.stringify([market?.symbol,analysis?.side,analysis?.date,targets.map(z=>z.target.toFixed(2))]);
  if(key!==targetSignature){
@@ -200,8 +202,8 @@ function adoptTargets(){
   const percentages=TradePlanner.setupPercentages(targets.length,retention(),profile);
   rows=targets.map((z,i)=>{const row=createTargetRow(i);row.p.value=z.target.toFixed(2);
    row.percent.value=String(percentages[i]);return row;});
- }else if(profile!==lastAllocationProfile&&!manualPercentages){const percentages=TradePlanner.setupPercentages(rows.length,retention(),profile);rows.forEach((row,i)=>{row.percent.value=String(percentages[i]);});}
- lastAllocationProfile=profile;renderSetupObservation();
+ }else if((profile!==lastAllocationProfile||retention()!==lastAllocationRetain)&&!manualPercentages){const percentages=TradePlanner.setupPercentages(rows.length,retention(),profile);rows.forEach((row,i)=>{row.percent.value=String(percentages[i]);});}
+ lastAllocationProfile=profile;lastAllocationRetain=retention();renderSetupObservation();renderRetentionMode();
  $('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');
  $('target-count').textContent=targets.length?`${targets.length}档候选 · 比例可调整`:'';
  renderPlan();savePlan();
@@ -242,11 +244,14 @@ function applyBuffer(){
   if(defaults.stop===null)$('market-error').textContent='近期极值不在正确止损方向，请手动设置止损。';
  }catch(e){$('market-error').textContent=e.message;}
 }
+function renderRetentionMode(){$('retain-auto').textContent=autoRetention?'自动':'恢复自动';$('retain-auto').disabled=autoRetention;$('retain-auto').setAttribute('aria-pressed',String(autoRetention));}
+$('retain-auto').addEventListener('click',()=>{autoRetention=true;manualPercentages=false;lastAllocationProfile='';adoptTargets();});
 $('retain-position').addEventListener('input',()=>{
+ autoRetention=false;
  $('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');
  const percentages=TradePlanner.setupPercentages(rows.length,retention(),analysis?.setup?.profile||'pyramid');
  rows.forEach((row,i)=>{row.percent.value=String(percentages[i]);});manualPercentages=false;
- renderPlan();renderSetupObservation();savePlan();
+ renderPlan();renderSetupObservation();renderRetentionMode();savePlan();
 });
 $('stop-buffer').addEventListener('change',()=>{savePlan();applyBuffer();});
 $('max-target-atr').addEventListener('change',renderAnalysis);
@@ -276,6 +281,6 @@ $('ratio-help').addEventListener('toggle',event=>{
 $('atr-help').addEventListener('toggle',event=>{
  $('atr-help-toggle').setAttribute('aria-expanded',String(event.newState==='open'));
 });
-$('retain-value').textContent=retention()+'%';
+$('retain-value').textContent=retention()+'%';renderRetentionMode();
 renderPlan();
 })();

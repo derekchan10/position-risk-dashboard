@@ -53,6 +53,7 @@ main{max-width:none;width:100%;padding:20px 24px}.workspace{grid-template-column
 .result-panel .analysis-details{color:var(--result-text)}.result-panel .analysis-details h3{color:var(--result-text)}.result-panel .evidence-row{background:#203d33;border-color:#3a564b}.result-panel .evidence-row span{color:var(--result-muted)}.result-panel .analysis-details #atr-value{color:var(--result-muted)}.result-panel .analysis-details summary,.result-panel .analysis-details a{color:var(--mint)}.result-panel #market-meta{overflow-wrap:anywhere}.result-panel .decision-card{margin-bottom:14px}.result-panel .analysis-details details{font-size:13px}.result-panel .zone-row{font-size:13px}.result-panel .zone-row small{color:var(--result-muted)}
 @media(min-width:1051px){.result-panel .leverage-hero{padding:0 0 8px}.result-panel .hero-value{font-size:40px;margin:4px 0}.result-column .result-panel .result{padding:8px 0}.result-panel #reference-status{padding-top:7px}.result-panel .decision-card{margin-bottom:10px}.result-panel .analysis-details h3{margin-top:10px}.result-panel .evidence-row{font-size:13px;padding:5px 7px}.result-panel .analysis-details details{margin:2px 0}.result-panel .analysis-details summary{min-height:22px}.workspace{grid-template-columns:minmax(250px,.85fr) minmax(360px,1.15fr) minmax(360px,1.2fr)}}
 .budget-source{margin-top:8px;font-size:12px!important}.budget-source a{color:var(--mint);text-underline-offset:3px}
+.trade-snapshot{margin-top:10px;padding:10px 12px;background:var(--field);border:1px solid var(--line);border-radius:10px;font-size:14px}.snapshot-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:4px 0}.snapshot-row span{color:var(--muted)}.snapshot-row strong{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}#snapshot-time{font-size:12px;color:var(--muted);margin:0 0 5px;line-height:1.4}#auto-price-note{font-size:12px;margin-top:7px} @media(min-width:1051px) and (max-height:760px){.trade-snapshot{padding:7px 10px;margin-top:8px}.snapshot-row{padding:3px 0;font-size:13px}#snapshot-time{margin-bottom:3px}.inputs{gap:10px}#auto-price-note{line-height:1.4}}
 </style>
 </head>
 <body><main>
@@ -62,7 +63,12 @@ main{max-width:none;width:100%;padding:20px 24px}.workspace{grid-template-column
 
 <label>开仓价<input id="entry" type="number" min="0" step="any" value="130"></label>
 <label>止损价<input id="stop" type="number" min="0" step="any" value="124"></label>
-</div><p id="stop-hint" class="explain input-hint">做多：止损价低于开仓价</p><p id="auto-price-note" class="explain"></p><div id="error" role="alert"></div><p class="explain">修改参数后自动更新仓位与止盈建议</p></section>
+</div><p id="stop-hint" class="explain input-hint">做多：止损价低于开仓价</p><div id="trade-snapshot" class="trade-snapshot" aria-live="polite">
+<div class="snapshot-row"><span>当前价格 · 常规时段</span><strong id="snapshot-price">—</strong></div>
+<p id="snapshot-time">等待行情授权</p>
+<div class="snapshot-row"><span id="snapshot-extreme-label">近10日低点</span><strong id="snapshot-extreme">—</strong></div>
+<div class="snapshot-row"><span>止损距离</span><strong id="snapshot-distance">—</strong></div>
+</div><p id="auto-price-note" class="explain"></p><div id="error" role="alert"></div><p class="explain">修改参数后自动更新仓位与止盈建议</p></section>
 <div class="result-column"><section class="panel result-panel" aria-labelledby="output-heading" aria-live="polite"><div class="result-heading"><h2 id="output-heading">仓位预算</h2><span>逐仓模式</span></div><div class="decision-card"><p id="market-status" role="status">等待行情</p><div id="market-error" role="alert"></div></div><div id="output"><div class="leverage-hero"><div class="caption" id="leverage-caption">逐仓杠杆预算上限</div><div class="hero-value" id="leverage-value"></div><div class="explain" id="risk-note"></div></div><div class="results">
 <div class="result"><div class="caption">持仓总额</div><div class="value" id="notional"></div><div class="explain">杠杆后的总敞口</div></div>
 <div class="result"><div class="caption" id="margin-label"></div><div class="value" id="margin"></div><div class="explain">本笔需要投入的保证金</div></div>

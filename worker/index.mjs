@@ -41,8 +41,9 @@ export default {async fetch(request,env){
   if(path==='/auth/status'&&request.method==='GET')return json({connected:!!(sid&&await get(env,'session:'+sid)),cloud:true});
   if(path==='/auth/disconnect'&&request.method==='POST'){if(sid)await env.SESSIONS.delete('session:'+sid);return json({ok:true},200,{'Set-Cookie':cookie('',0)});}
   if(path==='/auth/start'&&request.method==='POST'){
-   const redirect=url.origin+'/auth/callback';let client=await env.SESSIONS.get('oauth-client');
-   if(!client){const j=await upstream('/oauth2/register',{redirect_uris:[redirect],token_endpoint_auth_method:'none',grant_types:['authorization_code','refresh_token'],response_types:['code'],client_name:'CW 在线仓位看板（只读行情）',scope:'quote:read'});client=j.client_id;await env.SESSIONS.put('oauth-client',client);}
+   const redirect=url.origin+'/auth/callback',clientKey='oauth-client:'+url.origin;let client=await env.SESSIONS.get(clientKey);
+   if(!client&&url.hostname==='cw-futu-backend.dchan0831.workers.dev')client=await env.SESSIONS.get('oauth-client');
+   if(!client){const j=await upstream('/oauth2/register',{redirect_uris:[redirect],token_endpoint_auth_method:'none',grant_types:['authorization_code','refresh_token'],response_types:['code'],client_name:'CW 在线仓位看板（只读行情）',scope:'quote:read'});client=j.client_id;await env.SESSIONS.put(clientKey,client);}
    const state=random(),verifier=random(),browser=random();await put(env,'pending:'+state,{client,verifier,browser},600);
    const challenge=b64(await crypto.subtle.digest('SHA-256',enc.encode(verifier)));
    return json({url:FUTU+'/oauth2/authorize/confirm?'+new URLSearchParams({client_id:client,redirect_uri:redirect,response_type:'code',scope:'quote:read',state,code_challenge:challenge,code_challenge_method:'S256'})},200,{'Set-Cookie':`cw_oauth=${browser}; Path=/auth/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`});

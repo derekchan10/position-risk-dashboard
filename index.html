@@ -24,9 +24,7 @@
 </div><p class="explain" id="reference-status"></p><p class="notice" id="warning"></p><p class="summary-note" id="simple-note"></p></section>
 <details class="panel"><summary>高级设置</summary><div class="inputs">
 <label>交易方向<select id="side"><option value="long">做多</option><option value="short">做空</option></select></label>
-<label>杠杆选择方式<select id="mode"><option value="auto">自动：按保证金损失比例计算整数上限</option><option value="manual">手动比较</option></select></label>
 <label>平台支持的最高杠杆<span>示例20倍，请按具体合约修改</span><input id="platformMax" type="number" min="1" step="1" value="20"></label>
-<label>手动比较杠杆<input id="leverage" type="number" min="1" step="any" value="5"></label>
 <label>开仓手续费率（%）<input id="feeIn" type="number" min="0" step="any" value="0"></label>
 <label>平仓手续费率（%）<input id="feeOut" type="number" min="0" step="any" value="0"></label>
 <label>止损不利滑点（%）<input id="slip" type="number" min="0" step="any" value="0"></label>
@@ -35,4 +33,4 @@
 <label>平台预估强平价（可选）<span>需对应相同仓位、方向、杠杆及逐仓保证金</span><input id="liquidation" type="number" min="0" step="any" placeholder="填写平台显示的价格"></label>
 </div><p class="summary-note" id="advanced-note"></p><div class="table-wrap"><table><thead><tr><th>杠杆</th><th>所需保证金</th><th>止损损失／保证金</th><th>预算检查</th></tr></thead><tbody id="rows"></tbody></table></div><p class="notice" id="liq-note"></p></details>
 <footer>适用于线性U本位合约及等效股票仓位，不适用于期权、反向合约。价格使用同一计价单位。默认不计费用与滑点，请在高级设置填写实际值。止损不保证成交价；本工具不计算强平价；参考杠杆只满足填写的预算约束，不代表安全或最佳值。输入只保存在当前浏览器。</footer>
-</main><script src="app.js?v=trade-v3"></script></body></html>
+</main><script src="app.js?v=trade-v4"></script></body></html>

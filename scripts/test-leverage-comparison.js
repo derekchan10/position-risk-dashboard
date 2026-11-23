@@ -9,3 +9,5 @@ const unlimited=C.compareLeverages({...s,marginLimit:null});assert(unlimited.eve
 const short=C.compareLeverages({...s,side:'short',stop:136});assert(short.every(r=>r.loss<=500+1e-8));
 const fees=C.compareLeverages({...s,slip:.2,reserve:10,marginLimit:1000});assert(fees.every(r=>r.loss<=500+1e-8&&r.margin<=1000+1e-8));
 console.log('PASS: independent leverage sizing, margin limit, risk reached/limited, fees, slip, reserve and short direction');
+
+assert(C.compareLeverages({...s,platformMax:30}).some(r=>r.leverage===25));assert(C.compareLeverages({...s,platformMax:12}).every(r=>r.leverage<=12));

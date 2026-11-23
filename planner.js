@@ -55,7 +55,7 @@ function priceDefaults(data,side,buffer=.1){
 function weekTargets(analysis,maxATR){
  const near=analysis.zones[0];if(!near)return {targets:[],reason:'暂无前方水平区，不生成固定止盈。'};
  if(near.r<1.5)return {targets:[],reason:'最近水平区不足1.5R，按一周规则放弃这次开仓；不跳过近处压力寻找远目标。'};
- const targets=analysis.zones.filter(z=>z.atrDistance!==null&&z.atrDistance<=maxATR);
+ const targets=analysis.zones.filter(z=>z.atrDistance!==null&&z.atrDistance<=maxATR).slice(0,3);
  return {targets,reason:targets.length?'':'最近水平区超出距离筛选，暂无候选。'};
 }
 function structureStop(side,initial,current,previous,level,atr,confirmed){

@@ -13,7 +13,7 @@ function analyze(data,date,entry,stop,side){
  const trs=bars.slice(-14).map((b,i)=>{const idx=bars.length-14+i,p=bars[idx-1]?.close??b.close;return Math.max(b.high-b.low,Math.abs(b.high-p),Math.abs(b.low-p));});
  const atr=trs.reduce((a,b)=>a+b,0)/trs.length;
  const raw=[];const add=(p,label)=>{if(dir*(p-entry)>0)raw.push({price:p,label});};
- mas.filter(m=>m.value!==null).forEach(m=>add(m.value,'MA'+m.n+'（SMA）'));
+ // Moving averages are auxiliary only; never enter horizontal target clustering.
  add(last.high,'前一交易日高点 '+last.date);add(last.low,'前一交易日低点 '+last.date);
  const start=Math.max(2,bars.length-90);
  for(let i=start;i<bars.length-2;i++){
@@ -24,9 +24,16 @@ function analyze(data,date,entry,stop,side){
  const distance=Math.max(entry*.003,Math.min(atr*.2,entry*.01));
  raw.sort((a,b)=>a.price-b.price);const zones=[];
  for(const point of raw){let z=zones.at(-1);if(!z||point.price-z.low>distance){z={low:point.price,high:point.price,labels:[]};zones.push(z);}z.high=point.price;z.labels.push(point.label);}
- zones.forEach(z=>{z.labels=[...new Set(z.labels)];z.target=dir===1?z.low:z.high;z.r=dir*(z.target-entry)/risk;z.confluence=z.labels.some(x=>x.startsWith('MA'))&&z.labels.some(x=>!x.startsWith('MA'));});
+ zones.forEach(z=>{z.labels=[...new Set(z.labels)];z.target=dir===1?z.low:z.high;z.r=dir*(z.target-entry)/risk;z.atrDistance=atr>0?Math.abs(z.target-entry)/atr:null;z.confluence=mas.some(m=>m.value!==null&&m.value>=z.low-distance&&m.value<=z.high+distance);});
  zones.sort((a,b)=>dir*(a.target-b.target));
- return {date,lastDate:last.date,lastClose:last.close,count:bars.length,atr,mas,zones,targets:zones.filter(z=>z.r>=1).slice(0,3),side};
+ return {date,lastDate:last.date,lastClose:last.close,count:bars.length,atr,mas,zones,targets:zones.filter(z=>z.r>=1&&z.atrDistance!==null&&z.atrDistance<=4).slice(0,3),side};
+}
+function trailing(side,entry,initialStop,atr,extreme,currentStop,multiple){
+ const dir=side==='short'?-1:1;
+ if(![entry,initialStop,atr,extreme,currentStop,multiple].every(Number.isFinite)||atr<=0||multiple<=0||dir*(entry-initialStop)<=0||dir*(extreme-entry)<0||dir*(extreme-currentStop)<=0)throw Error('请填写有效的持仓后极值与当前保护价；做多极值不低于开仓价，做空反之，保护价不能越过极值。');
+ const raw=extreme-dir*multiple*atr;
+ const reference=dir===1?Math.max(initialStop,currentStop,raw):Math.min(initialStop,currentStop,raw);
+ return {reference,raw,distance:multiple*atr};
 }
 function profits(s,position,rows){
  let total=0,cumulative=0;const dir=s.side==='short'?-1:1,risk=Math.abs(s.entry-s.stop);
@@ -44,5 +51,5 @@ function profits(s,position,rows){
  const remaining=Math.max(0,1-total/100),remainingLoss=position.loss*remaining;
  return {rows:parsed,total,net:cumulative,remaining,remainingQuantity:position.quantity*remaining,netIfStop:cumulative-remainingLoss,netR:cumulative/position.loss};
 }
-const api={analyze,profits};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
+const api={analyze,profits,trailing};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
 })(typeof window==='undefined'?{}:window);

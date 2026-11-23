@@ -56,3 +56,12 @@ Worker 同时提供 HTTPS 看板入口，Pages 保持原入口，通过链接进
 更新 Worker：`sh scripts/package-worker.sh` 后执行
 `npx wrangler@4 deploy --config worker/wrangler.jsonc`。
 不要重复生成加密密钥，否则现有会话将无法解密。
+
+## 水平区止盈与余仓参考
+
+候选仅来自已确认水平高低点与前日高低点，均线不参与价位聚合或补足档位。
+默认至少1R，最多距开仓4 ATR，可选2/4/6 ATR；这些筛选参数没有收益保证，未经过策略回测。
+ATR为最近14根日线真实波幅的简单平均，不是Wilder平滑。
+余仓参考需手动填写持仓后极值、当前保护价；做多取 max(初始止损, 当前保护价, 极值−倍数×ATR)，
+做空对称取min。倍数默认2可选1.5/3，使用开仓前ATR快照，不是实时追踪或自动订单。
+测试 `node scripts/test-exits.js`。

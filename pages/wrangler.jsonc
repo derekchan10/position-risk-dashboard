@@ -1,0 +1,6 @@
+{
+  "name": "cw-position-helper",
+  "pages_build_output_dir": "../_pages-site",
+  "compatibility_date": "2026-11-01",
+  "kv_namespaces": [{"binding": "SESSIONS", "id": "4e3b454b45864e1c8adb05ba7c7788bb"}]
+}

@@ -87,3 +87,17 @@ ATR为最近14根日线真实波幅的简单平均，不是Wilder平滑。
 切换时亏损预算不变；自动值可手动修改。新股票模式使用当前美股日期，历史日期需在手动价格模式配置。
 停止输入、按回车或点击生成均可触发；旧响应被取消或丢弃，读取中手动改价不会被异步覆盖。
 参考止损规则未回测，不能代替交易结构判断。测试：`node scripts/test-price-defaults.js`。
+
+## 仅绑定 cw 子域名（GoDaddy 保留权威 DNS）
+
+使用 Cloudflare Pages 高级模式，`scripts/package-pages.sh` 打包相同后端到 `_worker.js`，
+独立 KV 命名空间与加密密钥。`pages/wrangler.jsonc` 为 Pages 部署配置。
+`cd pages && npx wrangler@4 pages deploy ../_pages-site --project-name cw-position-helper --branch main`。
+需要 Pages 部署权限。域名只绑定 cw.dcdddd.com，外部 DNS 使用 Pages 项目返回的 pages.dev CNAME。
+不更换 dcdddd.com 名称服务器，不影响其他主机记录。Pages 新域名需要重新完成富途只读授权。
+
+Pages 已部署：https://cw-position-helper.pages.dev
+自定义域 cw.dcdddd.com 已添加，等待 GoDaddy CNAME：cw → cw-position-helper.pages.dev。
+Pages TOKEN_ENCRYPTION_KEY 已设置（独立于 Worker），不要重复生成。
+首次创建 Pages 项目时，当前 Wrangler 必须使用 `pages project create cw-position-helper --production-branch main --force`
+以避免自动转换成 Worker；项目已存在，后续 `pages deploy` 无需此参数。

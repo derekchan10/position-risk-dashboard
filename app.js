@@ -65,6 +65,22 @@ function update(save){
  if(save){try{localStorage.setItem('position-calculator-default70-v6',JSON.stringify(Object.fromEntries(ids.map(id=>[id,value(id)]))));}catch(e){}}
 }
 try{const current=localStorage.getItem('position-calculator-default70-v6');const saved=JSON.parse(current||localStorage.getItem('position-calculator-fees-v5')||localStorage.getItem('position-calculator-trade-v4')||'null');if(saved&&!current)saved.cap='70';if(saved&&!current){for(const key of ['feeIn','feeOut'])if(saved[key]===''||saved[key]==null||Number(saved[key])===0)saved[key]='0.05';}if(saved)for(const id of ids)if(Object.hasOwn(saved,id)){if(id==='side'){const radio=document.querySelector('input[name=side][value="'+(saved[id]==='short'?'short':'long')+'"]');radio.checked=true;}else if(id==='cap'){const n=Number(saved[id]);el(id).value=String([10,20,30,40,50,60,70,80,90].includes(n)?n:70);}else el(id).value=saved[id];}}catch(e){}
+const defaultsKey='position-trade-defaults-v1';
+let tradeDefaults={risk:500,marginLimit:3000};
+try{
+ const saved=JSON.parse(localStorage.getItem(defaultsKey)||'null');
+ if(saved&&Number.isFinite(saved.risk)&&saved.risk>0)tradeDefaults.risk=saved.risk;
+ if(saved&&(saved.marginLimit===null||(Number.isFinite(saved.marginLimit)&&saved.marginLimit>0)))tradeDefaults.marginLimit=saved.marginLimit;
+}catch(e){}
+el('default-risk').value=tradeDefaults.risk;el('default-margin').value=tradeDefaults.marginLimit??'';
+el('risk').value=tradeDefaults.risk;el('marginLimit').value=tradeDefaults.marginLimit??'';
+for(const id of ['default-risk','default-margin'])el(id).addEventListener('change',()=>{
+ const risk=el('default-risk').value===''?NaN:Number(el('default-risk').value),marginLimit=el('default-margin').value===''?null:Number(el('default-margin').value);
+ if(!Number.isFinite(risk)||risk<=0||marginLimit!==null&&(!Number.isFinite(marginLimit)||marginLimit<=0)){el('defaults-error').textContent='默认亏损预算须大于0；保证金上限须大于0或留空。';return;}
+ el('defaults-error').textContent='';tradeDefaults={risk,marginLimit};
+ try{localStorage.setItem(defaultsKey,JSON.stringify(tradeDefaults));}catch(e){}
+ el('risk').value=risk;el('marginLimit').value=marginLimit??'';update(true);
+});
 const settings=el('settings-dialog');el('open-settings').addEventListener('click',()=>settings.showModal());el('close-settings').addEventListener('click',()=>settings.close());settings.addEventListener('click',e=>{if(e.target===settings){const b=settings.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right)settings.close();}});
 ids.filter(id=>id!=='side').forEach(id=>el(id).addEventListener('input',()=>update(true)));document.querySelectorAll('input[name=side]').forEach(r=>r.addEventListener('change',()=>update(true)));update(false);
 })();

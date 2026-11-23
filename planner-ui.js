@@ -51,18 +51,12 @@ async function loadStock(){
  try{
   await listReady;
   const symbol=$('stock-symbol').value.trim().toUpperCase();if(!/^[A-Z0-9.^=-]{1,16}$/.test(symbol))throw Error('请输入有效股票代码。');$('stock-symbol').value=symbol;
-  const key=$('market-api-key').value.trim(),requestedSource=$('market-source').value,requestedDate=$('analysis-date').value;
+  const requestedSource=$('market-source').value,requestedDate=$('analysis-date').value;
   if($('market-source').value==='futu'){
    if(!cloudBackend&&location.origin!=='http://localhost:8768')throw Error('富途需要本机授权服务。请在电脑运行 scripts/futu_bridge.py，再打开 http://localhost:8768。');
    const response=await fetch('/api/futu/bars?'+new URLSearchParams({symbol,date:$('analysis-date').value}));const j=await response.json();if(!response.ok)throw Error(j.error||'富途行情读取失败');market=j;
-  }else if(key){
-   if(location.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(location.hostname))throw Error('自有密钥模式仅可在HTTPS连接下使用；当前请使用缓存股票或导入数据。');
-   const url=new URL('https://api.twelvedata.com/time_series');Object.entries({symbol,interval:'1day',outputsize:'500',apikey:key,order:'asc'}).forEach(([k,v])=>url.searchParams.set(k,v));
-   const response=await fetch(url,{referrerPolicy:'no-referrer'});const j=await response.json();if(j.status==='error'||!Array.isArray(j.values))throw Error(j.message||'行情服务未返回数据。');
-   const bars=j.values.map(b=>({date:b.datetime.slice(0,10),open:Number(b.open),high:Number(b.high),low:Number(b.low),close:Number(b.close),volume:Number(b.volume||0)})).filter(b=>b.date<ny);
-   market={symbol,currency:j.meta?.currency||'USD',source:'Twelve Data',sourceUrl:'https://twelvedata.com/',fetchedAt:new Date().toISOString(),bars};
   }else{
-   if(!known.includes(symbol))throw Error('该代码尚无免密钥缓存。可在“其他股票／自有数据”填写 Twelve Data 密钥或导入日线。当前支持：'+known.join('、'));
+   if(!known.includes(symbol))throw Error('该代码尚无免费缓存，请切换到富途行情并授权。当前缓存支持：'+known.join('、'));
    const response=await fetch('data/'+encodeURIComponent(symbol)+'.json',{cache:'no-store'});if(!response.ok)throw Error('行情读取失败，请稍后重试。');market=await response.json();
   }
   if($('stock-symbol').value.trim().toUpperCase()!==symbol||$('market-source').value!==requestedSource||$('analysis-date').value!==requestedDate){market=null;throw Error('代码、来源或日期已改变，请重新分析。');}
@@ -88,7 +82,7 @@ $('stock-symbol').addEventListener('input',()=>{market=null;analysis=null;$('mar
 $('max-target-atr').addEventListener('change',renderAnalysis);
 $('analysis-date').addEventListener('change',()=>{renderAnalysis();savePlan();});
 window.addEventListener('trade-input-change',()=>{renderPlan();renderAnalysis();});
-$('market-file').addEventListener('change',async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>2e6)throw Error('文件请小于2MB。');const j=JSON.parse(await file.text());if(!Array.isArray(j.bars)||!j.symbol)throw Error('需要包含symbol及bars字段。');market=j;$('stock-symbol').value=j.symbol;renderAnalysis();}catch(e){market=null;analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;$('market-error').textContent=e.message;}});
-listReady=fetch('data/symbols.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error();return r.json();}).then(list=>{known=list;$('stock-list').replaceChildren(...list.map(s=>{const o=document.createElement('option');o.value=s;return o;}));}).catch(()=>{$('market-status').textContent='股票缓存列表暂不可用，可使用自有行情入口。';});
+
+listReady=fetch('data/symbols.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error();return r.json();}).then(list=>{known=list;$('stock-list').replaceChildren(...list.map(s=>{const o=document.createElement('option');o.value=s;return o;}));}).catch(()=>{$('market-status').textContent='股票缓存列表暂不可用，请稍后重试或使用富途行情。';});
 renderPlan();
 })();

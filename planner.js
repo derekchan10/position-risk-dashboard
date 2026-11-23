@@ -35,6 +35,27 @@ function trailing(side,entry,initialStop,atr,extreme,currentStop,multiple){
  const reference=dir===1?Math.max(initialStop,currentStop,raw):Math.min(initialStop,currentStop,raw);
  return {reference,raw,distance:multiple*atr};
 }
+function weekTargets(analysis,maxATR){
+ const near=analysis.zones[0];if(!near)return {targets:[],reason:'暂无前方水平区，不生成固定止盈。'};
+ if(near.r<1.5)return {targets:[],reason:'最近水平区不足1.5R，按一周规则放弃这次开仓；不跳过近处压力寻找远目标。'};
+ const targets=analysis.zones.filter(z=>z.atrDistance!==null&&z.atrDistance<=maxATR).slice(0,2);
+ return {targets,reason:targets.length?'':'最近水平区超出距离筛选，暂无候选。'};
+}
+function structureStop(side,initial,current,previous,level,atr,confirmed){
+ const dir=side==='short'?-1:1;
+ if(!confirmed)throw Error('先确认P1成交和两根完整60分钟K线。');
+ if(![initial,current,previous,level,atr].every(x=>Number.isFinite(x)&&x>0)||dir*(level-previous)<=0)throw Error('填写正数结构价和60分钟ATR；新结构必须向盈利方向推进。');
+ const raw=level-dir*.25*atr;
+ return dir===1?Math.max(initial,current,raw):Math.min(initial,current,raw);
+}
+function settlement(s,position,fills,rest,extra){
+ if(!Number.isFinite(extra))throw Error('请填写有效其他费用。');
+ let fraction=0,net=0;const dir=s.side==='short'?-1:1;
+ const exit=(price,f)=>{if(!Number.isFinite(price)||price<=0||!Number.isFinite(f)||f<=0)throw Error('请填写实际成交均价。');net+=position.quantity*f*(dir*(price-s.entry)-s.entry*s.feeIn/100-price*s.feeOut/100);};
+ for(const fill of fills){fraction+=fill.fraction;if(fraction>1+1e-8)throw Error('成交比例超过原仓。');exit(fill.price,fill.fraction);}
+ let remaining=Math.max(0,1-fraction);if(rest!==null){exit(rest,remaining);fraction=1;remaining=0;}
+ return {net:net-extra,remaining,quantity:position.quantity*remaining,freed:position.margin===null?null:position.margin*fraction,r:(net-extra)/position.loss};
+}
 function profits(s,position,rows){
  let total=0,cumulative=0;const dir=s.side==='short'?-1:1,risk=Math.abs(s.entry-s.stop);
  const active=rows.filter(x=>x.price!==''||x.percent!=='');
@@ -51,5 +72,5 @@ function profits(s,position,rows){
  const remaining=Math.max(0,1-total/100),remainingLoss=position.loss*remaining;
  return {rows:parsed,total,net:cumulative,remaining,remainingQuantity:position.quantity*remaining,netIfStop:cumulative-remainingLoss,netR:cumulative/position.loss};
 }
-const api={analyze,profits,trailing};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
+const api={analyze,profits,trailing,weekTargets,structureStop,settlement};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
 })(typeof window==='undefined'?{}:window);

@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict'),P=require('../planner.js'),calc=require('../app.js');
+const a={zones:[{r:1,atrDistance:.5,target:136},{r:2,atrDistance:1,target:142}]};assert.equal(P.weekTargets(a,4).targets.length,0,'do not skip near pressure');
+assert.equal(P.weekTargets({zones:[{r:2,atrDistance:1,target:142}]},4).targets.length,1);
+assert.equal(P.structureStop('long',124,135,130,140,4,true),139);
+assert.equal(P.structureStop('long',124,140,130,140,4,true),140,'never loosen');
+assert.equal(P.structureStop('short',136,125,130,120,4,true),121);
+assert.throws(()=>P.structureStop('long',124,124,140,135,4,true));assert.throws(()=>P.structureStop('long',124,124,130,140,4,false));
+const s={side:'long',entry:130,stop:124,risk:500,cap:70,feeIn:0,feeOut:0,slip:0,reserve:0,step:0,platformMax:20},r=calc(s);
+const partial=P.settlement(s,r,[{fraction:.4,price:142}],null,0);assert(Math.abs(partial.net-400)<1e-8);assert.equal(partial.remaining,.6);
+const done=P.settlement(s,r,[{fraction:.4,price:142},{fraction:.3,price:148}],136,10);assert(Math.abs(done.net-990)<1e-8);assert.equal(done.remaining,0);assert.equal(done.freed,r.margin);
+assert.throws(()=>P.settlement(s,r,[{fraction:.4,price:0}],null,0));
+const loss=P.settlement(s,r,[],124,0);assert(Math.abs(loss.net+500)<1e-8);
+console.log('PASS: nearest resistance gate, one-target plan, confirmed structure stops, partial/final settlement, loss accounting');

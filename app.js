@@ -71,10 +71,9 @@ function update(save){
   const roundedRow=roundedLeverage>=5?compareLeverages(s).find(row=>row.leverage===roundedLeverage):null;
   el('five-leverage').replaceChildren();
   if(roundedRow){
-   const title=document.createElement('strong');title.textContent=fmt(roundedRow.leverage)+'倍 · 5的倍数参考';
+   const title=document.createElement('strong');title.textContent=fmt(roundedRow.leverage)+'倍参考 · 预计止损 '+fmt(roundedRow.loss)+' U';
    const details=document.createElement('span');details.textContent='仓位 '+fmt(roundedRow.notional)+' U · 保证金 '+fmt(roundedRow.margin)+' U';
-   const risk=document.createElement('span');risk.textContent='预计止损亏损 '+fmt(roundedRow.loss)+' U';
-   el('five-leverage').append(title,details,risk);
+   el('five-leverage').append(title,details);
   }else el('five-leverage').textContent='当前上限不足5倍，暂无符合预算的5倍整数档。';
 
   el('simple-note').textContent=r.reference===null?'无法给出逐仓参考杠杆；下方高级设置可查看约束。':'按止损损失占保证金 '+fmt(s.cap)+'%计算，理论杠杆上限为 '+fmt(r.maxLeverage)+'倍；向下取整数并限制在填写的平台上限内，得到 '+fmt(r.reference)+'倍。这是预算上限，不是安全杠杆建议。';

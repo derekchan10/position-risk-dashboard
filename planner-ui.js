@@ -148,13 +148,31 @@ function renderPriceChart(s){
  svg+=`<g role="button" tabindex="0" data-zone="${a.index}" aria-label="${escape(a.title)}"><title>${escape(a.source||a.detail)}</title><line x1="${left}" x2="${right}" y1="${yy}" y2="${yy}" stroke="${a.color}" stroke-dasharray="6 3"/><path d="M ${right} ${yy} L 703 ${cardY+24} L 716 ${cardY+24}" fill="none" stroke="${a.color}"/><circle cx="${right}" cy="${yy}" r="3" fill="${a.color}"/><rect x="716" y="${cardY}" width="350" height="65" rx="7" fill="var(--panel)" stroke="${a.color}"/><text x="726" y="${cardY+19}" font-size="14" font-weight="600" fill="${a.color}">${escape(a.title)}</text><text x="726" y="${cardY+38}" font-size="12" fill="currentColor">${escape(a.detail)}</text><text x="726" y="${cardY+55}" font-size="11" fill="currentColor">${escape(a.source.length>32?a.source.slice(0,32)+'…':a.source)}</text></g>`;
  });
  for(const index of [0,Math.floor((bars.length-1)/2),bars.length-1])svg+=`<text x="${x(index)}" y="${height-15}" text-anchor="middle" font-size="11" fill="currentColor">${safeDate(bars[index].date)}</text>`;
- svg+='</svg>';$('price-chart').innerHTML=svg;$('chart-focus').textContent='点击右侧价位标记，查看来源与日期。';
- $('chart-legend').replaceChildren(text('div','绿色K线：收盘高于开盘；红色K线：收盘低于开盘。黄色带：历史候选压力／支撑区。右侧标签与对应价位连线。'),text('div','净收益按填写费用计算，假设该档成交，未计滑点；历史价位不保证有效。修改平仓比例后，图中收益同步更新。'));
+ svg+='</svg>';
+ // A separate narrow chart keeps axes readable; full trade details sit below it.
+ const mobileBars=bars.slice(-40),mw=360,mh=300,ml=54,mr=348,mt=30,mb=270;
+ const mobileValues=[...mobileBars.flatMap(b=>[b.high,b.low]),...annotations.map(a=>a.value)],mlo=Math.min(...mobileValues),mhi=Math.max(...mobileValues),mpad=Math.max((mhi-mlo)*.08,.01);
+ const my=value=>+(mb-(value-mlo+mpad)/(mhi-mlo+2*mpad)*(mb-mt)).toFixed(2),mx=i=>+(ml+i/(mobileBars.length-1)*(mr-ml)).toFixed(2);
+ let mobile=`<svg viewBox="0 0 ${mw} ${mh}" role="group" aria-label="手机交易图：最近${mobileBars.length}根日线与开仓止损止盈水平"><text x="${ml}" y="18" font-size="12" fill="currentColor">${escape(market.symbol)} · USD · ${mobileBars.length}根日线</text>`;
+ for(let i=0;i<5;i++){const value=mlo-mpad+(mhi-mlo+2*mpad)*i/4,yy=my(value);mobile+=`<line x1="${ml}" x2="${mr}" y1="${yy}" y2="${yy}" stroke="currentColor" opacity=".12"/><text x="48" y="${yy+4}" text-anchor="end" font-size="11" fill="currentColor">${value.toFixed(2)}</text>`;}
+ zones.forEach(z=>{mobile+=`<rect x="${ml}" y="${my(z.high)}" width="${mr-ml}" height="${Math.max(2,my(z.low)-my(z.high))}" fill="#c6922e" opacity=".2"/>`;});
+ mobileBars.forEach((b,i)=>{const xx=mx(i),color=b.close>=b.open?'#29a37b':'#df6a75';mobile+=`<line x1="${xx}" x2="${xx}" y1="${my(b.high)}" y2="${my(b.low)}" stroke="${color}"/><rect x="${xx-2}" y="${Math.min(my(b.open),my(b.close))}" width="4" height="${Math.max(1,Math.abs(my(b.open)-my(b.close)))}" fill="${color}"/>`;});
+ annotations.forEach(a=>{const label=a.index>=0?(targets.length?'P':'候选')+(a.index+1):a.value===s.entry?'开仓':'止损';mobile+=`<line x1="${ml}" x2="${mr}" y1="${my(a.value)}" y2="${my(a.value)}" stroke="${a.color}" stroke-dasharray="5 3"/><text x="${mr-3}" y="${my(a.value)-4}" text-anchor="end" font-size="10" font-weight="600" fill="${a.color}" stroke="var(--field)" stroke-width="3" paint-order="stroke">${label}</text>`;});
+ // Transparent touch strips expose OHLC without relying on desktop hover tooltips.
+ mobileBars.forEach((b,i)=>{mobile+=`<rect x="${mx(i)-4}" y="${mt}" width="8" height="${mb-mt}" fill="transparent" role="button" tabindex="0" data-bar="${bars.length-mobileBars.length+i}" aria-label="查看${b.date}日线"/>`;});
+ for(const i of [0,mobileBars.length-1])mobile+=`<text x="${mx(i)}" y="292" text-anchor="${i?'end':'start'}" font-size="11" fill="currentColor">${mobileBars[i].date.slice(5)}</text>`;
+ mobile+='</svg>';
+ const cards=[...annotations].sort((a,b)=>a.index-b.index||b.value-a.value).map(a=>`<button type="button" class="mobile-level" data-zone="${a.index}" style="--level-color:${a.color}"><strong>${escape(a.title)}</strong><span>${escape(a.detail)}</span><small>${escape(a.source||'当前交易参数')}</small></button>`).join('');
+ $('price-chart').innerHTML=`<div class="desktop-chart">${svg}</div><div class="mobile-chart">${mobile}<p class="chart-note">轻点K线查看当日价格；轻点下方价位查看完整依据。</p><div class="mobile-levels">${cards}</div></div>`;
+ $('chart-focus').textContent='点击价位查看依据；手机可轻点K线查看开高低收。';
+ $('chart-legend').replaceChildren(text('div','绿色K线：收盘高于开盘；红色K线：收盘低于开盘。黄色带：历史候选压力／支撑区。电脑端右侧标签连接价位；手机端下方卡片列出各档信息。'),text('div','净收益按填写费用计算，假设该档成交，未计滑点；历史价位不保证有效。修改平仓比例后，图中收益同步更新。'));
  const retained=100-rows.reduce((sum,row)=>sum+Number(row.percent.value),0);if(Number.isFinite(retained)&&retained>0)$('chart-legend').append(text('div',`预留 ${f(retained)}%：移出固定止盈档继续持有，仍沿用本笔止损参考，余仓后续收益未计入本图。`));
  if(analysis.setup)$('chart-legend').append(text('div',`${analysis.side==='short'?'回落':'反弹'}观察：${analysis.setup.extent} · ${analysis.setup.progress} · ${analysis.setup.space}；${analysis.setup.profileLabel}，仅按 ${analysis.setup.lastDate} 及之前完整日线判断。`));
 }
 function inspectChart(event){
  if(event.type==='keydown'&&!['Enter',' '].includes(event.key))return;
+ const candle=event.target.closest?.('[data-bar]');
+ if(candle){const bars=market?.bars.filter(b=>b.date<$('analysis-date').value).sort((a,b)=>a.date.localeCompare(b.date)).slice(-90),bar=bars?.[Number(candle.getAttribute('data-bar'))];if(bar)$('chart-focus').textContent=`${bar.date}（美股交易日）· 开 ${price(bar.open)} / 高 ${price(bar.high)} / 低 ${price(bar.low)} / 收 ${price(bar.close)}`;return;}
  const marker=event.target.closest?.('[data-zone]');if(!marker)return;
  const index=Number(marker.getAttribute('data-zone')),zones=analysis?.targets.length?analysis.targets:analysis?.zones.slice(0,3),zone=zones?.[index];
  $('chart-focus').textContent=zone?`${window.PositionRisk.read().side==='short'?'潜在支撑':'潜在压力'} ${price(zone.low)}${zone.high>zone.low?' ～ '+price(zone.high):''} · 距开仓 ${f(zone.atrDistance)} ATR · 来源：${zone.labels.join('；')}`:'开仓和止损是当前交易参数，可在左侧修改；本图只展示计划，不执行交易。';

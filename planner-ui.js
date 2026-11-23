@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id),f=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:2});
-let market=null,analysis=null,signature='',busy=false,cloudBackend=false,backendReady=Promise.resolve(),requestVersion=0,controller=null,autoTimer=null,priceBinding=null;
+let market=null,analysis=null,signature='',busy=false,cloudBackend=false,backendReady=Promise.resolve(),requestVersion=0,controller=null,autoTimer=null,priceBinding=null,authorized=null;
 const now=new Date(),ny=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 $('analysis-date').value=ny;$('analysis-date').max=ny;
 function text(tag,t){const e=document.createElement(tag);e.textContent=t;return e;}
@@ -14,8 +14,15 @@ const rows=[0,1].map((_,i)=>{
 function savePlan(){try{localStorage.setItem('profit-plan-week-v1',JSON.stringify({rows:rows.map(x=>({price:x.p.value,percent:x.percent.value})),symbol:$('stock-symbol').value,date:$('analysis-date').value,style:$('plan-style').value}));}catch(e){}}
 try{const saved=JSON.parse(localStorage.getItem('profit-plan-week-v1')||'null');if(saved){$('stock-symbol').value=saved.symbol||'NVDA';if(saved.date&&saved.date<=ny)$('analysis-date').value=saved.date;$('plan-style').value='week';}}catch(e){}
 function current(){const s=window.PositionRisk.read();return {s,r:window.PositionRisk.calculate(s)};}
+function authorizationHint(){
+ if(authorized!==false)return;
+ $('market-status').textContent='请先授权富途行情，授权后自动获取价格与止盈建议。';
+ $('plan-trade-context').textContent='等待富途授权';
+ if(!$('entry').value||!$('stop').value){$('error').textContent='';$('plan-error').textContent='';}
+}
 function renderPlan(){
  $('plan-error').textContent='';$('plan-summary').replaceChildren();rows.forEach(x=>{x.r.textContent='—';x.net.textContent='—';});
+ if(authorized===false){authorizationHint();$('plan-summary').append(text('p','请先授权富途行情，系统将自动生成止盈建议。'));return;}
  try{
   const {s,r}=current();$('plan-trade-context').textContent=`${s.side==='long'?'做多':'做空'} ${f(s.entry)} / 止损 ${f(s.stop)}`;
   const raw=rows.map(x=>({price:x.p.value,percent:x.percent.value})),active=raw.filter(x=>x.price!==''||x.percent!=='');
@@ -49,6 +56,8 @@ function refreshSizing(){ $('entry').dispatchEvent(new Event('input',{bubbles:tr
 async function loadStock(options={}){
  clearTimeout(autoTimer);
  if(busy)return;
+ await backendReady;
+ if(authorized!==true){authorizationHint();renderPlan();return;}
  const autoPrices=options.autoPrices===true||!$('entry').value||!$('stop').value||priceBinding!==$('stock-symbol').value.trim().toUpperCase();
  const requestId=++requestVersion;controller=new AbortController();
  busy=true;$('market-error').textContent='';$('market-status').textContent=autoPrices?'正在获取新股票报价与近期低点…':'正在读取日线…';market=null;analysis=null;adoptTargets();$('market-results').hidden=true;
@@ -82,7 +91,7 @@ async function futuStatus(autoSelect=false){
  const local=location.origin==='http://localhost:8768'||(location.hostname.endsWith('.workers.dev')||location.hostname==='cw-position-helper.pages.dev'||location.hostname==='cw.dcdddd.com');
  $('futu-connect').hidden=!local;$('futu-disconnect').hidden=true;
  if(!local){$('futu-status').replaceChildren(text('span','富途线上版已启用。请在 HTTPS 入口连接授权：'));const link=document.createElement('a');link.href='https://cw-futu-backend.dchan0831.workers.dev';link.textContent='打开富途线上看板';link.target='_blank';link.rel='noopener noreferrer';$('futu-status').append(link);return;}
- try{const r=await fetch('/auth/status'),j=await r.json();cloudBackend=j.cloud===true;$('futu-status').textContent=j.connected?(cloudBackend?'已连接富途云端 · 只读行情':'已连接富途 · 只读行情'):'尚未连接，点击下方按钮前往富途官方页面授权。';$('futu-connect').hidden=j.connected;$('futu-disconnect').hidden=!j.connected;$('futu-panel').hidden=false;return j.connected;}catch(e){$('futu-status').textContent='本机授权服务暂不可用。';}
+ try{const r=await fetch('/auth/status'),j=await r.json();cloudBackend=j.cloud===true;authorized=j.connected===true;$('futu-status').textContent=j.connected?(cloudBackend?'已连接富途云端 · 只读行情':'已连接富途 · 只读行情'):'请先授权富途行情；授权后自动读取报价和生成止盈建议。';$('futu-connect').hidden=j.connected;$('futu-disconnect').hidden=!j.connected;$('futu-panel').hidden=false;renderPlan();authorizationHint();return j.connected;}catch(e){$('futu-status').textContent='本机授权服务暂不可用。';}
 }
 
 $('futu-connect').addEventListener('click',async()=>{try{$('futu-connect').disabled=true;const r=await fetch('/auth/start',{method:'POST'}),j=await r.json();if(!r.ok)throw Error(j.error);const url=new URL(j.url);if(url.origin!=='https://webapi.futunn.com')throw Error('授权地址无效');location.assign(url.href);}catch(e){$('futu-status').textContent=e.message;$('futu-connect').disabled=false;}});
@@ -101,7 +110,7 @@ for(const id of ['entry','stop'])$(id).addEventListener('input',()=>{priceBindin
 $('max-target-atr').addEventListener('change',renderAnalysis);
 $('analysis-date').addEventListener('change',()=>{savePlan();return loadStock();});
 window.addEventListener('trade-input-change',()=>{
- renderPlan();
+ renderPlan();authorizationHint();
  if(market){renderAnalysis();return;}
  if(!busy&&$('entry').value&&$('stop').value){clearTimeout(autoTimer);autoTimer=setTimeout(()=>loadStock(),600);}
 });

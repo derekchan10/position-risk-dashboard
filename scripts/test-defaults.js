@@ -10,9 +10,9 @@ function boot(storage){
 }
 const store=new Map([['position-calculator-default70-v6',JSON.stringify({risk:999,marginLimit:9999})]]);
 let e=boot(store);assert.equal(Number(e.risk.value),500);assert.equal(Number(e.marginLimit.value),3000);
-e.marginLimit.value='2000';e['default-risk'].value='600';e['default-risk'].listeners.change();assert.equal(Number(e.risk.value),600);assert.equal(Number(e.marginLimit.value),2000);
+e['default-risk'].value='600';e['default-margin'].value='2000';e['default-risk'].listeners.change();assert.equal(Number(e.risk.value),600);assert.equal(Number(e.marginLimit.value),2000);
 e.risk.value='100';e.risk.listeners.input();e=boot(store);assert.equal(Number(e.risk.value),600);assert.equal(Number(e.marginLimit.value),2000);
-assert.equal(Number(e.marginLimit.value),3000);e.marginLimit.value='';e.marginLimit.listeners.input();assert.equal(e.marginLimit.value,'');e=boot(store);assert.equal(Number(e.marginLimit.value),3000);assert(!html.includes('id="default-margin"'));
+e['default-margin'].value='';e['default-margin'].listeners.change();assert.equal(e.marginLimit.value,'');e=boot(store);assert.equal(e.marginLimit.value,'');
 e['default-risk'].value='0';e['default-risk'].listeners.change();assert(e['defaults-error'].textContent);assert.equal(Number(e.risk.value),600);
 console.log('PASS: initial 500/3000 defaults, immediate apply, reload persistence, temporary edits, unlimited margin and invalid inputs');
 

@@ -14,7 +14,7 @@ const rows=[0,1].map((_,i)=>{
  p.addEventListener('blur',()=>{if(p.value!==''&&Number.isFinite(Number(p.value)))p.value=Number(p.value).toFixed(2);savePlan();});percent.readOnly=true;p.min='0';p.step='any';percent.min='0';percent.max='100';percent.step='any';
  p.setAttribute('aria-label',`第${i+1}档止盈价格`);percent.setAttribute('aria-label',`第${i+1}档卖出比例，百分比`);p.placeholder='价格';percent.placeholder='%';
  const ratioCell=document.createElement('td'),r=text('span','—'),net=text('td','—');r.className='ratio-number';
- const label=text('div','盈亏比'),help=text('button','?');label.className='ratio-label';help.type='button';help.className='help-toggle';help.setAttribute('aria-label',`第${i+1}档盈亏比说明`);help.setAttribute('aria-expanded','false');help.setAttribute('aria-controls','ratio-help');help.addEventListener('click',toggleRatioHelp);ratioHelpButtons.push(help);label.append(help);ratioCell.append(label,r);
+ const label=text('div','盈亏比'),help=text('button','?');label.className='ratio-label';help.type='button';help.className='help-toggle';help.setAttribute('aria-label',`第${i+1}档盈亏比说明`);help.setAttribute('aria-expanded','false');help.setAttribute('aria-controls','ratio-help');help.setAttribute('popovertarget','ratio-help');ratioHelpButtons.push(help);label.append(help);ratioCell.append(label,r);
  net.setAttribute('data-label','本档预计净收益');for(const input of [p,percent]){const td=document.createElement('td');td.setAttribute('data-label',input===p?`第${i+1}档 · 止盈价格`:'卖出原始仓位');td.append(input);if(input===percent)td.append(text('span','%'));tr.append(td);input.addEventListener('input',()=>{if(input===p)percent.value=p.value?([40,30][i]):'';renderPlan();savePlan();});}tr.append(ratioCell,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
 });
 function savePlan(){try{localStorage.setItem('profit-plan-week-v1',JSON.stringify({rows:rows.map(x=>({price:x.p.value,percent:x.percent.value})),symbol:$('stock-symbol').value,date:$('analysis-date').value,style:$('plan-style').value,buffer:buffer()}));}catch(e){}}
@@ -184,14 +184,11 @@ window.addEventListener('trade-input-change',()=>{
 });
 
 
-function toggleRatioHelp(){
- const expanded=!$('ratio-help').hidden;
- ratioHelpButtons.forEach(button=>button.setAttribute('aria-expanded',String(!expanded)));
- $('ratio-help').hidden=expanded;
-}
-$('atr-help-toggle').addEventListener('click',()=>{
- const expanded=$('atr-help-toggle').getAttribute('aria-expanded')==='true';
- $('atr-help-toggle').setAttribute('aria-expanded',String(!expanded));$('atr-help').hidden=expanded;
+$('ratio-help').addEventListener('toggle',event=>{
+ ratioHelpButtons.forEach(button=>button.setAttribute('aria-expanded',String(event.newState==='open')));
+});
+$('atr-help').addEventListener('toggle',event=>{
+ $('atr-help-toggle').setAttribute('aria-expanded',String(event.newState==='open'));
 });
 renderPlan();
 })();

@@ -1,18 +1,17 @@
 const assert=require('node:assert/strict'),P=require('../planner.js');
-function bars(closes){return closes.map((close,i)=>({date:new Date(Date.UTC(2026,0,i+1)).toISOString().slice(0,10),open:close-.2,high:close+.5,low:close-.5,close,volume:i===closes.length-1?200:100}));}
-const zone={low:105,high:105,target:105,r:2.5,atrDistance:2},a={side:'long',zones:[zone],targets:[zone]};
+function bars(closes){return closes.map((close,i)=>({date:new Date(Date.UTC(2026,0,i+1)).toISOString().slice(0,10),open:close-.2,high:close+.5,low:close-.5,close,volume:100}));}
+const zones=[105,110,115].map(target=>({low:target,high:target,target,r:2.5,atrDistance:2})),a={side:'long',entry:86,stop:80,zones,targets:zones};
 const decline={bars:bars(Array.from({length:35},(_,i)=>120-i))};
-const falling=P.setupAssessment(decline,'2026-02-05',a);assert.equal(falling.extent,'明显');assert.equal(falling.confirmation,'仍创新低');assert.equal(falling.profile,'defensive');
-const recovery={bars:bars([...Array.from({length:35},(_,i)=>120-i),87,90,94])},confirmed=P.setupAssessment(recovery,'2026-02-08',a);
-assert.equal(confirmed.confirmation,'确认增强');assert.equal(confirmed.profile,'balanced');assert.equal(confirmed.metrics.volumeRatio,2);
-const noVolume={bars:recovery.bars.map(({volume,...bar})=>bar)},missing=P.setupAssessment(noVolume,'2026-02-08',a);assert.equal(missing.metrics.volumeRatio,null);assert(missing.facts.some(x=>x.includes('成交量缺失')));assert.notEqual(missing.profile,'balanced');
-const cramped=P.setupAssessment(recovery,'2026-02-08',{...a,zones:[{...zone,r:1.2}],targets:[]});assert.equal(cramped.space,'空间不足');assert.equal(cramped.profile,'observe');assert(!cramped.applicable);
-const distant=P.setupAssessment(recovery,'2026-02-08',{...a,zones:[{...zone,atrDistance:5}],targets:[]});assert.equal(distant.space,'目标偏远');
-const stale=P.setupAssessment(recovery,'2026-03-01',a);assert.equal(stale.extent,'数据较旧');assert(!stale.applicable);
-assert.equal(P.setupAssessment({bars:recovery.bars.slice(0,20)},'2026-02-08',a).extent,'数据不足');
-const neutral=P.setupAssessment({bars:bars(Array(35).fill(100))},'2026-02-05',a);assert.equal(neutral.metrics.rsi,50);assert.equal(neutral.extent,'不明显');assert.equal(neutral.profile,'observe');
-const mirrored={bars:recovery.bars.map(b=>({...b,open:200-b.open,high:200-b.low,low:200-b.high,close:200-b.close}))},short=P.setupAssessment(mirrored,'2026-02-08',{...a,side:'short'});assert.equal(short.names[0],'超涨程度');assert.equal(short.profile,'balanced');assert.equal(short.confirmation,'确认增强');assert(Math.abs(short.metrics.rsi+confirmed.metrics.rsi-100)<.02);
-const poisoned={bars:[...recovery.bars,{date:'2099-01-01',open:999,high:1000,low:1,close:2,volume:999999999}]};assert.deepEqual(P.setupAssessment(poisoned,'2026-02-08',a),confirmed);
+const lowEntry=P.setupAssessment(decline,'2026-02-05',a);assert.equal(lowEntry.extent,'历史明显');assert.equal(lowEntry.profile,'balanced');assert(!('confirmation' in lowEntry));
+const live={...decline,quote:{price:94,date:'20260205'}},afterBounce=P.setupAssessment(live,'2026-02-05',a);assert(afterBounce.metrics.useQuote);assert.equal(afterBounce.metrics.reference,94);assert(afterBounce.metrics.recoveryATR>=2);assert.equal(afterBounce.profile,'defensive');
+const crossed=P.setupAssessment({...decline,quote:{price:108,date:'2026-02-05'}},'2026-02-05',a);assert(crossed.metrics.crossed);assert.equal(crossed.space,'目标已越过');assert.equal(crossed.profile,'observe');
+const missingVolume={bars:decline.bars.map(({volume,...bar})=>bar)},hugeVolume={bars:decline.bars.map(bar=>({...bar,volume:99999999}))};assert.deepEqual(P.setupAssessment(missingVolume,'2026-02-05',a),lowEntry);assert.deepEqual(P.setupAssessment(hugeVolume,'2026-02-05',a),lowEntry);
+const cramped=P.setupAssessment(decline,'2026-02-05',{...a,zones:[{...zones[0],r:1.2}],targets:[]});assert.equal(cramped.space,'空间不足');assert.equal(cramped.profile,'observe');
+const distant=P.setupAssessment(decline,'2026-02-05',{...a,zones:[{...zones[0],atrDistance:5}],targets:[]});assert.equal(distant.space,'目标偏远');
+assert.equal(P.setupAssessment(decline,'2026-03-01',a).extent,'数据较旧');assert.equal(P.setupAssessment({bars:decline.bars.slice(0,20)},'2026-02-05',a).extent,'数据不足');
+const flat=P.setupAssessment({bars:bars(Array(35).fill(100))},'2026-02-05',{...a,entry:100});assert.equal(flat.metrics.rsi,50);assert.equal(flat.extent,'不明显');assert.equal(flat.profile,'defensive');
+const mirror={bars:decline.bars.map(b=>({...b,open:200-b.open,high:200-b.low,low:200-b.high,close:200-b.close}))},shortZones=zones.map(z=>({...z,target:200-z.target,low:200-z.high,high:200-z.low})),short=P.setupAssessment(mirror,'2026-02-05',{...a,side:'short',entry:114,stop:120,zones:shortZones,targets:shortZones});assert.equal(short.names[0],'超涨背景');assert.equal(short.profile,lowEntry.profile);assert.equal(short.metrics.recoveryATR,lowEntry.metrics.recoveryATR);
+const poisoned={bars:[...decline.bars,{date:'2099-01-01',open:999,high:1000,low:1,close:2,volume:1}],quote:{price:999,date:'2099-01-01'}};assert.deepEqual(P.setupAssessment(poisoned,'2026-02-05',a),lowEntry);
 assert.deepEqual(P.setupPercentages(3,0,'defensive'),[60,30,10]);assert.deepEqual(P.setupPercentages(3,0,'balanced'),[33.34,33.33,33.33]);assert.deepEqual(P.setupPercentages(3,30,'defensive'),[42,21,7]);
 for(const profile of ['defensive','balanced','pyramid','observe'])for(const count of [0,1,2,3])for(const retain of [0,22.5,100])assert.equal(P.setupPercentages(count,retain,profile).reduce((sum,x)=>sum+Math.round(x*100),0),count?Math.round((100-retain)*100):0);
-console.log('PASS: RSI, falling/recovery confirmation, volume gaps, space gates, stale data, short symmetry, cutoff and allocations');
+console.log('PASS: depth/space allocations, contemporaneous quote progress, crossed targets, volume independence, cutoff and mirrored short');

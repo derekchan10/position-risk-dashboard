@@ -106,11 +106,6 @@ function renderAnalysis(){
   $('atr-distances').replaceChildren(text('p',`止损距离 ${f(risk/analysis.atr)} ATR；距近期${dir===1?'低':'高'}点 ${f(Math.abs(s.entry-base)/analysis.atr)} ATR；目标最远 ${f(maxATR)} ATR。`),...analysis.targets.map((z,i)=>text('p',`第${i+1}档目标距离 ${f(z.atrDistance)} ATR`)));
   $('decision-evidence').replaceChildren(...evidence.map(([label,value])=>{const row=text('div','');row.className='evidence-row';row.append(text('span',label),text('strong',value));return row;}));
   $('target-table').hidden=!eligible;$('profit-note').hidden=!eligible;
-  if(eligible&&analysis.setup.applicable&&['仍创新低','仍创新高','确认不足'].includes(analysis.setup.confirmation)){
-   $('market-status').textContent=s.side==='short'?'先观察 · 滞涨尚未确认':'先观察 · 止跌尚未确认';
-   $('market-error').textContent='价格空间通过筛选，结构确认仍不足；右侧比例仅作预案。';
-   $('market-status').parentElement?.setAttribute('data-state','wait');
-  }else if(eligible&&!analysis.setup.applicable){$('market-error').textContent+=' 当前日线不足以支持超跌／超涨反转判断。';}
   if(gap>5)$('market-error').textContent+=' 日线数据距分析日超过5天，请核对数据日期。';
 
  }catch(e){analysis=null;adoptTargets();$('market-results').hidden=true;$('target-table').hidden=true;$('profit-note').hidden=true;$('market-error').textContent=e.message;}
@@ -118,14 +113,14 @@ function renderAnalysis(){
 function renderSetupObservation(){
  const setup=analysis?.setup;$('setup-observation').hidden=!setup;
  if(!setup)return;
- $('setup-heading').textContent=analysis.side==='short'?'回落观察':'反弹观察';
- const values=[setup.extent,setup.confirmation,setup.space];
+ $('setup-heading').textContent='止盈比例参考';
+ const values=[setup.extent,setup.progress,setup.space];
  $('setup-signals').replaceChildren(...setup.names.map((name,i)=>{const item=text('div','');item.append(text('span',name),text('strong',values[i]));return item;}));
  const percentages=TradePlanner.setupPercentages(analysis.targets.length,retention(),setup.profile);
- $('setup-allocation').textContent=analysis.targets.length?`${manualPercentages?'手动比例优先；参考：':''}${setup.profileLabel} · ${percentages.map(p=>f(p)+'%').join(' / ')}`:'等待合适目标，不生成比例。';
+ $('setup-allocation').textContent=setup.metrics?.crossed?'部分目标已越过，请核对成交并更新目标。':analysis.targets.length?`${manualPercentages?'手动比例优先；参考：':''}${setup.profileLabel} · ${percentages.map(p=>f(p)+'%').join(' / ')}`:'等待合适目标，不生成比例。';
  $('setup-reason').textContent=setup.reason;
  $('setup-facts').replaceChildren(...setup.facts.map(fact=>text('p',fact)));
- $('setup-data-date').textContent=`数据截至 ${setup.lastDate}；观察不包含当日盘中价格。`;
+ $('setup-data-date').textContent=`历史背景截至 ${setup.lastDate}；位置参考：${setup.referenceLabel||'缺少报价'}${setup.referenceTime?' · '+new Date(setup.referenceTime).toLocaleString('zh-CN',{timeZone:'America/New_York'})+' 美东':''}。`;
 }
 function renderPriceChart(s){
  if(![s.entry,s.stop].every(v=>Number.isFinite(v)&&v>0)){$('price-chart').replaceChildren();return;}
@@ -155,7 +150,7 @@ function renderPriceChart(s){
  for(const index of [0,Math.floor((bars.length-1)/2),bars.length-1])svg+=`<text x="${x(index)}" y="${height-15}" text-anchor="middle" font-size="11" fill="currentColor">${safeDate(bars[index].date)}</text>`;
  svg+='</svg>';$('price-chart').innerHTML=svg;$('chart-focus').textContent='点击右侧价位标记，查看来源与日期。';
  $('chart-legend').replaceChildren(text('div','绿色K线：收盘高于开盘；红色K线：收盘低于开盘。黄色带：历史候选压力／支撑区。右侧标签与对应价位连线。'),text('div','净收益按填写费用计算，假设该档成交，未计滑点；历史价位不保证有效。修改平仓比例后，图中收益同步更新。'));
- if(analysis.setup)$('chart-legend').append(text('div',`${analysis.side==='short'?'回落':'反弹'}观察：${analysis.setup.extent} · ${analysis.setup.confirmation} · ${analysis.setup.space}；${analysis.setup.profileLabel}，仅按 ${analysis.setup.lastDate} 及之前完整日线判断。`));
+ if(analysis.setup)$('chart-legend').append(text('div',`${analysis.side==='short'?'回落':'反弹'}观察：${analysis.setup.extent} · ${analysis.setup.progress} · ${analysis.setup.space}；${analysis.setup.profileLabel}，仅按 ${analysis.setup.lastDate} 及之前完整日线判断。`));
 }
 function inspectChart(event){
  if(event.type==='keydown'&&!['Enter',' '].includes(event.key))return;

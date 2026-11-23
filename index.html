@@ -15,7 +15,7 @@
 <label>这笔最多亏多少（U）<span>止损时，愿意承担的总损失</span><input id="risk" type="number" min="0" step="any" value="500"></label>
 <label>开仓价<span>准备买入或卖出的价格</span><input id="entry" type="number" min="0" step="any" value="130"></label>
 <label>止损价<span id="stop-hint">做多：跌到这个价格就退出</span><input id="stop" type="number" min="0" step="any" value="124"></label>
-<label>止损损失占保证金上限（%）<span>只是预算检查，不代表不会强平</span><input id="cap" type="number" min="0" max="100" step="any" value="80"></label>
+<label>止损损失占保证金上限（%）<span>只是预算检查，不代表不会强平</span><select id="cap"><option value="10">10%</option><option value="20">20%</option><option value="30">30%</option><option value="40">40%</option><option value="50">50%</option><option value="60">60%</option><option value="70">70%</option><option value="80" selected>80%</option><option value="90">90%</option></select></label>
 </div></section>
 <div id="error" role="alert"></div>
 <section class="panel" id="output" aria-labelledby="output-heading" aria-live="polite"><h2 id="output-heading">你的计算结果</h2><div class="results">
@@ -33,4 +33,4 @@
 <label>平台预估强平价（可选）<span>需对应相同仓位、方向、杠杆及逐仓保证金</span><input id="liquidation" type="number" min="0" step="any" placeholder="填写平台显示的价格"></label>
 </div><p class="summary-note" id="advanced-note"></p><div class="table-wrap"><table><thead><tr><th>杠杆</th><th>所需保证金</th><th>止损损失／保证金</th><th>预算检查</th></tr></thead><tbody id="rows"></tbody></table></div><p class="notice" id="liq-note"></p></details>
 <footer><a href="https://www.binance.com/en/support/faq/detail/360033544231" target="_blank" rel="noopener noreferrer">币安手续费说明</a> · 适用于线性U本位合约及等效股票仓位，不适用于期权、反向合约。价格使用同一计价单位。默认开仓、平仓各按0.05%计算（普通用户USDT合约吃单标准，未含折扣）。股票类等特殊合约或活动费率可能不同，以账户实际费率为准；滑点默认0。止损不保证成交价；本工具不计算强平价；参考杠杆只满足填写的预算约束，不代表安全或最佳值。输入只保存在当前浏览器。</footer>
-</main><script src="app.js?v=trade-v6"></script></body></html>
+</main><script src="app.js?v=trade-v7"></script></body></html>

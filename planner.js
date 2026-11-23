@@ -62,7 +62,7 @@ function setupAssessment(data,date,analysis,maxATR=4){
  const near=analysis.zones[0],eligible=!!near&&near.r>=1.5&&near.atrDistance!==null&&near.atrDistance<=maxATR&&analysis.targets.length>0;
  const crossed=analysis.targets.some(z=>dir*(z.target-reference)<=0),forward=analysis.targets.find(z=>dir*(z.target-reference)>0),remainingDistance=forward?dir*(forward.target-reference):null,remainingATR=remainingDistance!==null&&atr>0?remainingDistance/atr:null;
  const stale=(Date.parse(date)-Date.parse(last.date))/86400000>5;
- const space=!near?'缺少目标':!eligible?(near.r<1.5?'空间不足':'目标偏远'):crossed?'目标已越过':remainingATR!==null?remainingATR.toFixed(2)+' ATR':'缺少目标';
+ const space=!near?'缺少目标':!eligible?(near.r<1.5?'空间不足':'目标偏远'):crossed?'目标已越过':remainingDistance!==null?(remainingDistance/reference*100).toFixed(2)+'%':'缺少目标';
  let profile='pyramid',profileLabel='金字塔兑现',reason='超跌／超涨背景与前方空间并不同时突出，采用先多后少的基础分配。';
  if(stale||!eligible||crossed){profile='observe';profileLabel='仅作预案';reason=stale?'日线背景较旧，暂停自动比例判断；不影响开仓筛选。':crossed?'部分计划目标已被报价越过，先核对实际成交并更新目标；不会假定这些档位已经成交。':'目标空间未通过原有筛选，不生成止盈目标。';}
  else if(stretchSignals>=2&&near.r>=2&&recoveryDistance>=0&&recoveryATR!==null&&recoveryATR<=1&&remainingATR!==null&&remainingATR>=1){profile='balanced';profileLabel='均衡兑现';reason='前期超跌／超涨较明显，尚未远离近期极值，前方目标也有空间，参考均衡分配；不据此预测反弹强度。';}

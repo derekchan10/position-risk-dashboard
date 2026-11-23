@@ -28,6 +28,10 @@ r=await worker.fetch(req('/api/futu/bars?symbol=NVDA&date=2026-11-20','GET',{Coo
 assert.match(apiFailure(200,{ret_code:-12,error:{code:'history_quota_exceeded'}}).message,/额度已用完/);
 assert.match(apiFailure(200,{ret_code:-9,error:{code:'permission_denied'}}).message,/行情权限/);
 assert.equal(apiFailure(401,{ret_code:-12102}).authExpired,true);
+data.delete('throttle:'+sessionCookie.split('=')[1]);
+globalThis.fetch=async url=>url.endsWith('/token')?Response.json({error:'invalid_grant'},{status:400}):Response.json({ret_code:-12102},{status:401});
+r=await worker.fetch(req('/api/futu/bars?symbol=NVDA&date=2026-11-20','GET',{Cookie:sessionCookie}),env);assert.equal(r.status,401);assert.equal((await r.json()).needsAuth,true);
+r=await worker.fetch(req('/auth/status','GET',{Cookie:sessionCookie}),env);assert.equal((await r.json()).connected,false,'invalid refresh clears session');
 r=await worker.fetch(req('/auth/disconnect','POST',{Cookie:sessionCookie,Origin:origin}),env);assert.equal(r.status,200);
 r=await worker.fetch(req('/auth/status','GET',{Cookie:sessionCookie}),env);assert.equal((await r.json()).connected,false);
 for(const scope of ['','quote:read trade:read','quote:read trade:write','quote:read quote:write'])assert.throws(()=>validScope({scope}));

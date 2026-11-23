@@ -34,7 +34,7 @@ function analyze(data,date,entry,stop,side){
  for(const point of raw){let z=zones.at(-1);if(!z||point.price-z.low>distance){z={low:point.price,high:point.price,labels:[]};zones.push(z);}z.high=point.price;z.labels.push(point.label);}
  zones.forEach(z=>{z.labels=[...new Set(z.labels)];z.target=dir===1?z.low:z.high;z.r=dir*(z.target-entry)/risk;z.atrDistance=atr>0?Math.abs(z.target-entry)/atr:null;z.confluence=mas.some(m=>m.value!==null&&m.value>=z.low-distance&&m.value<=z.high+distance);});
  zones.sort((a,b)=>dir*(a.target-b.target));
- return {date,lastDate:last.date,lastClose:last.close,count:bars.length,atr,mas,zones,targets:zones.filter(z=>z.r>=1&&z.atrDistance!==null&&z.atrDistance<=4).slice(0,3),side};
+ return {date,lastDate:last.date,lastClose:last.close,count:bars.length,atr,mas,zones,targets:zones.filter(z=>z.r>=1&&z.atrDistance!==null&&z.atrDistance<=4),side};
 }
 function trailing(side,entry,initialStop,atr,extreme,currentStop,multiple){
  const dir=side==='short'?-1:1;
@@ -55,7 +55,7 @@ function priceDefaults(data,side,buffer=.1){
 function weekTargets(analysis,maxATR){
  const near=analysis.zones[0];if(!near)return {targets:[],reason:'暂无前方水平区，不生成固定止盈。'};
  if(near.r<1.5)return {targets:[],reason:'最近水平区不足1.5R，按一周规则放弃这次开仓；不跳过近处压力寻找远目标。'};
- const targets=analysis.zones.filter(z=>z.atrDistance!==null&&z.atrDistance<=maxATR).slice(0,2);
+ const targets=analysis.zones.filter(z=>z.atrDistance!==null&&z.atrDistance<=maxATR);
  return {targets,reason:targets.length?'':'最近水平区超出距离筛选，暂无候选。'};
 }
 function structureStop(side,initial,current,previous,level,atr,confirmed){
@@ -81,7 +81,7 @@ function profits(s,position,rows){
   if(!Number.isFinite(price)||price<=0||!Number.isFinite(percent)||percent<=0||percent>100)throw Error('每档价格须大于0，比例须大于0且不超过100%。');
   if(dir*(price-s.entry)<=0)throw Error('做多止盈价须高于开仓价；做空须低于开仓价。');
   if(i&&dir*(price-Number(active[i-1].price))<=0)throw Error('各档价格须按依次触发的顺序填写。');
-  total+=percent;if(total>100+1e-8)throw Error('卖出比例按原始仓位计算，合计不能超过100%。');
+  total+=percent;if(total>100+1e-8)throw Error('平仓比例按原始仓位计算，合计不能超过100%。');
   const f=percent/100,q=position.quantity*f;
   const gross=q*dir*(price-s.entry),net=gross-q*(s.entry*s.feeIn/100+price*s.feeOut/100)-s.reserve*f;
   cumulative+=net;return {price,percent,quantity:q,gross,net,cumulative,r:dir*(price-s.entry)/risk};

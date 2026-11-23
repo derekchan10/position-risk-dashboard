@@ -11,3 +11,6 @@ const done=P.settlement(s,r,[{fraction:.4,price:142},{fraction:.3,price:148}],13
 assert.throws(()=>P.settlement(s,r,[{fraction:.4,price:0}],null,0));
 const loss=P.settlement(s,r,[],124,0);assert(Math.abs(loss.net+500)<1e-8);
 console.log('PASS: nearest resistance gate, one-target plan, confirmed structure stops, partial/final settlement, loss accounting');
+
+const many={zones:Array.from({length:7},(_,i)=>({r:1.5+i,atrDistance:1+i*.5,target:140+i*5}))};assert.equal(P.weekTargets(many,4).targets.length,7);assert.equal(P.weekTargets(many,2).targets.length,3);
+console.log('PASS: no fixed target count; distance filtering still applies');

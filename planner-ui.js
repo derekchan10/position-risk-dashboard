@@ -68,7 +68,8 @@ function renderPlan(){
   const result=TradePlanner.profits(s,r,raw);let n=0;
   rows.forEach(x=>{if(x.percent.value!==''&&Number(x.percent.value)===0){x.r.textContent=f((s.side==='short'?-1:1)*(Number(x.p.value)-s.entry)/Math.abs(s.entry-s.stop))+'R';x.net.textContent='0 U';}else if(x.p.value!==''||x.percent.value!==''){const a=result.rows[n++];x.r.textContent=f(a.r)+'R';x.net.textContent=f(a.net)+' U';}});
   const summary=document.createElement('div');summary.className='plan-summary';
-  [`计划净收益 ${f(result.net)} U`, `平仓 ${f(result.total)}% 原始仓位 · 保留 ${f(result.remaining*100)}%`].forEach(t=>summary.append(text('div',t)));
+  [`计划净收益 ${f(result.net)} U · ${f(result.netR)}R`, `平仓 ${f(result.total)}% 原始仓位 · 保留 ${f(result.remaining*100)}%`].forEach(t=>summary.append(text('div',t)));
+  summary.title='整体净收益盈亏比＝各档计划净收益合计÷本笔实际预计止损亏损；假设各档成交，不计预留仓位未来收益。';
   summary.append(text('div',`计划减仓数量：${result.rows.map((x,i)=>'P'+(i+1)+' '+f(x.quantity)+'单位').join('；')}。`));$('plan-summary').append(summary);
  }catch(e){$('plan-trade-context').textContent='等待有效交易价格';$('plan-error').textContent=e.message;}
 }

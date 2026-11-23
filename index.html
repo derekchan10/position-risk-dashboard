@@ -9,7 +9,7 @@
 </style>
 </head>
 <body><main>
-<header><h1>仓位计算器</h1><p class="intro">先确定最多亏多少，再决定买多大仓位。</p></header>
+<header><h1>仓位计算器</h1><p class="intro">填入预算和止损价，直接计算逐仓参考杠杆。</p></header>
 <section class="panel" aria-labelledby="input-heading"><h2 id="input-heading">填这四项就能算</h2><div class="inputs">
 <label>账户总资金（U）<span>你的整个交易账户有多少钱</span><input id="equity" type="number" min="0" step="any" value="3000"></label>
 <label>这笔最多亏多少（U）<span>止损时，愿意承担的总损失</span><input id="risk" type="number" min="0" step="any" value="500"></label>
@@ -19,12 +19,14 @@
 <div id="error" role="alert"></div>
 <section class="panel" id="output" aria-labelledby="output-heading" aria-live="polite"><h2 id="output-heading">你的计算结果</h2><div class="results">
 <div class="result"><div class="caption">这笔可以买多大仓位</div><div class="value" id="notional"></div><div class="explain">杠杆后的持仓总额，不是需要投入的本金</div></div>
-<div class="result"><div class="caption" id="margin-label"></div><div class="value" id="margin"></div><div class="explain">从账户中占用的本金；杠杆在高级设置调整</div></div>
-<div class="result"><div class="caption">止损时预计亏损</div><div class="value" id="loss"></div><div class="explain" id="risk-note"></div></div>
-</div><p class="notice" id="warning"></p><p class="summary-note" id="simple-note"></p></section>
+<div class="result"><div class="caption" id="margin-label"></div><div class="value" id="margin"></div><div class="explain">需要拨入本笔逐仓仓位的本金</div></div>
+<div class="result"><div class="caption" id="leverage-caption">逐仓参考杠杆</div><div class="value" id="leverage-value"></div><div class="explain" id="risk-note"></div></div>
+</div><p class="explain" id="reference-status"></p><p class="notice" id="warning"></p><p class="summary-note" id="simple-note"></p></section>
 <details class="panel"><summary>高级设置</summary><div class="inputs">
 <label>交易方向<select id="side"><option value="long">做多</option><option value="short">做空</option></select></label>
-<label>使用几倍杠杆<input id="leverage" type="number" min="1" step="any" value="5"></label>
+<label>杠杆选择方式<select id="mode"><option value="auto">自动：预算允许的最低整数倍数</option><option value="manual">手动比较</option></select></label>
+<label>平台支持的最高杠杆<span>示例20倍，请按具体合约修改</span><input id="platformMax" type="number" min="1" step="1" value="20"></label>
+<label>手动比较杠杆<input id="leverage" type="number" min="1" step="any" value="5"></label>
 <label>本笔可用保证金（U）<span>留空：按账户总资金计算</span><input id="available" type="number" min="0" step="any" placeholder="默认全部账户资金"></label>
 <label>止损损失占保证金上限（%）<span>只是预算检查，不代表不会强平</span><input id="cap" type="number" min="0" max="100" step="any" value="80"></label>
 <label>开仓手续费率（%）<input id="feeIn" type="number" min="0" step="any" value="0"></label>
@@ -34,5 +36,5 @@
 <label>数量步长（基础资产单位）<span>0表示不取整；合约张数需按平台规格换算</span><input id="step" type="number" min="0" step="any" value="0"></label>
 <label>平台预估强平价（可选）<span>需对应相同仓位、方向、杠杆及逐仓保证金</span><input id="liquidation" type="number" min="0" step="any" placeholder="填写平台显示的价格"></label>
 </div><p class="summary-note" id="advanced-note"></p><div class="table-wrap"><table><thead><tr><th>杠杆</th><th>所需保证金</th><th>止损损失／保证金</th><th>预算检查</th></tr></thead><tbody id="rows"></tbody></table></div><p class="notice" id="liq-note"></p></details>
-<footer>适用于线性U本位合约及等效股票仓位，不适用于期权、反向合约。价格使用同一计价单位。默认不计费用与滑点，请在高级设置填写实际值。止损不保证成交价；本工具不计算强平价，也不推荐最佳杠杆。输入只保存在当前浏览器。</footer>
-</main><script src="app.js"></script></body></html>
+<footer>适用于线性U本位合约及等效股票仓位，不适用于期权、反向合约。价格使用同一计价单位。默认不计费用与滑点，请在高级设置填写实际值。止损不保证成交价；本工具不计算强平价；参考杠杆只满足填写的预算约束，不代表安全或最佳值。输入只保存在当前浏览器。</footer>
+</main><script src="app.js?v=isolated-v2"></script></body></html>

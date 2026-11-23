@@ -36,6 +36,58 @@ function analyze(data,date,entry,stop,side){
  zones.sort((a,b)=>dir*(a.target-b.target));
  return {date,lastDate:last.date,lastClose:last.close,count:bars.length,atr,mas,zones,targets:zones.filter(z=>z.r>=1&&z.atrDistance!==null&&z.atrDistance<=4),side};
 }
+function rsiSeries(bars,period=14){
+ const result=Array(bars.length).fill(null);if(bars.length<=period)return result;
+ let gain=0,loss=0;
+ for(let i=1;i<=period;i++){const delta=bars[i].close-bars[i-1].close;gain+=Math.max(0,delta)/period;loss+=Math.max(0,-delta)/period;}
+ const value=()=>loss===0?(gain===0?50:100):100-100/(1+gain/loss);
+ result[period]=value();
+ for(let i=period+1;i<bars.length;i++){const delta=bars[i].close-bars[i-1].close;gain=(gain*(period-1)+Math.max(0,delta))/period;loss=(loss*(period-1)+Math.max(0,-delta))/period;result[i]=value();}
+ return result;
+}
+function setupAssessment(data,date,analysis,maxATR=4){
+ const bars=data.bars.filter(b=>b.date<date).sort((a,b)=>a.date.localeCompare(b.date)),short=analysis.side==='short';
+ const names=short?['超涨程度','滞涨迹象','回落空间']:['超跌程度','止跌迹象','反弹空间'];
+ const fallback={names,extent:'数据不足',confirmation:'待确认',space:'待确认',profile:'pyramid',profileLabel:'金字塔参考',weights:[3,2,1],reason:'不足24根完整日线，暂不评估强弱。',facts:[],lastDate:bars.at(-1)?.date||'',applicable:false};
+ if(bars.length<24)return fallback;
+ const last=bars.at(-1),prev=bars.at(-2),recent=bars.slice(-20),prior3=bars.slice(-4,-1),prior5=bars.slice(-6,-1),atr=wilderATR(bars),rsis=rsiSeries(bars),rsi=rsis.at(-1),previousRSI=rsis.at(-2);
+ const extremeRSI=(short?Math.max:Math.min)(...rsis.slice(-10).filter(Number.isFinite));
+ const anchor=short?Math.min(...recent.map(b=>b.low)):Math.max(...recent.map(b=>b.high));
+ const displacement=Math.max(0,short?last.close-anchor:anchor-last.close),excursionATR=atr>0?displacement/atr:0;
+ const change5=(last.close/bars.at(-6).close-1)*100,move=short?change5:-change5;
+ const extremeSignal=short?extremeRSI>=70:extremeRSI<=30;
+ const stretchSignals=Number(extremeSignal)+Number(move>=5)+Number(excursionATR>=3);
+ const extent=stretchSignals>=2?'明显':stretchSignals===1?'有迹象':'不明显';
+ const newExtreme=short?last.high>Math.max(...prior5.map(b=>b.high)):last.low<Math.min(...prior5.map(b=>b.low));
+ const structure=short?last.high<prev.high:last.low>prev.low,advance=short?last.close<prev.close:last.close>prev.close;
+ const breakout=short?last.close<Math.min(...prior3.map(b=>b.low)):last.close>Math.max(...prior3.map(b=>b.high));
+ const momentum=short?(rsi<previousRSI&&previousRSI>=60):(rsi>previousRSI&&previousRSI<=40);
+ const volumes=bars.slice(-21,-1).map(b=>b.volume),volumeAvailable=Number.isFinite(last.volume)&&last.volume>0&&volumes.every(v=>Number.isFinite(v)&&v>0);
+ const volumeRatio=volumeAvailable?last.volume/(volumes.reduce((sum,v)=>sum+v,0)/20):null,volumeSupport=volumeRatio!==null&&volumeRatio>=1.2&&advance;
+ const confirmed=structure&&advance&&breakout&&(momentum||volumeSupport);
+ const confirmation=newExtreme?(short?'仍创新高':'仍创新低'):confirmed?'确认增强':structure&&advance?(short?'初步滞涨':'初步止跌'):'确认不足';
+ const near=analysis.zones[0],eligible=!!near&&near.r>=1.5&&near.atrDistance!==null&&near.atrDistance<=maxATR&&analysis.targets.length>0;
+ const space=!near?'缺少目标':near.r<1.5?'空间不足':near.atrDistance===null||near.atrDistance>maxATR?'目标偏远':'空间达标';
+ const stale=(Date.parse(date)-Date.parse(last.date))/86400000>5;
+ let profile='pyramid',profileLabel='金字塔兑现',weights=[3,2,1],reason='结构确认增强，但未同时满足均衡分配的量能与空间条件，仍参考先多后少兑现。';
+ if(stale||!eligible||stretchSignals===0){profile='observe';profileLabel='仅作预案';weights=[3,2,1];reason=stale?'日线距分析日超过5天，暂停强弱与比例建议。':!eligible?'反弹／回落空间未通过既有筛选，不生成可执行目标。':'未出现明显的近期超跌／超涨特征，本模块不据此推荐反转交易。';}
+ else if(!confirmed){profile='defensive';profileLabel='偏早兑现';weights=[6,3,1];reason=newExtreme?'价格仍在向不利方向创新极值，等待结构确认；比例只作观察预案。':structure&&advance?'仅有初步结构迹象，较多比例放在近处目标，减少对远处目标的依赖。':'尚未形成明确止跌／滞涨结构，先等待确认；比例只作观察预案。';}
+ else if(volumeSupport&&near.r>=2){profile='balanced';profileLabel='均衡兑现';weights=[1,1,1];reason='结构突破、成交量与至少2R空间同时出现，可参考均衡分配；不代表反弹一定更强。';}
+ const n=value=>Number.isFinite(value)?Number(value.toFixed(2)):'未提供';
+ return {names,extent:stale?'数据较旧':extent,confirmation:stale?'待更新':confirmation,space,profile,profileLabel,weights,reason,lastDate:last.date,applicable:!stale&&eligible&&stretchSignals>0,
+ metrics:{rsi:n(rsi),extremeRSI:n(extremeRSI),change5:n(change5),excursionATR:n(excursionATR),volumeRatio:volumeRatio===null?null:n(volumeRatio),newExtreme,structure,advance,breakout,momentum,volumeSupport,stretchSignals},
+ facts:[`RSI(14) ${n(rsi)}；近10根${short?'最高':'最低'}RSI ${n(extremeRSI)}。`,`近5日收盘涨跌 ${n(change5)}%；距20日${short?'低':'高'}点 ${n(excursionATR)} ATR。`,`${short?'高点下移':'低点抬高'}：${structure?'是':'否'}；收盘向有利方向推进：${advance?'是':'否'}；收盘突破此前3日${short?'低':'高'}点：${breakout?'是':'否'}。`,volumeRatio===null?'成交量缺失或为0：不做量能确认，也不把缺失当成弱成交量。':`最新完整日成交量为此前20日均量的 ${n(volumeRatio)} 倍；${volumeSupport?'满足':'不满足'}量能配合条件。`,near?`最近${short?'支撑':'压力'}区 ${near.low.toFixed(2)}～${near.high.toFixed(2)}，${n(near.r)}R，${n(near.atrDistance)} ATR。`:'前方没有已识别的水平目标。']};
+}
+function setupPercentages(count,retain=0,profile='pyramid'){
+ if(profile==='pyramid'||profile==='observe'||count>3)return pyramidPercentages(count,retain);
+ if(!Number.isInteger(count)||count<0||!Number.isFinite(retain)||retain<0||retain>100)throw Error('档数或预留比例无效。');
+ if(!count)return [];
+ const weights=profile==='balanced'?Array(count).fill(1):count===3?[6,3,1]:count===2?[2,1]:[1];
+ const total=Math.round((100-retain)*100),sum=weights.reduce((a,b)=>a+b,0),parts=weights.map((weight,i)=>{const exact=total*weight/sum;return {i,cents:Math.floor(exact),fraction:exact%1};});
+ let remainder=total-parts.reduce((sum,part)=>sum+part.cents,0);
+ for(const part of [...parts].sort((a,b)=>b.fraction-a.fraction||a.i-b.i)){if(remainder--<=0)break;part.cents++;}
+ return parts.map(part=>part.cents/100);
+}
 function trailing(side,entry,initialStop,atr,extreme,currentStop,multiple){
  const dir=side==='short'?-1:1;
  if(![entry,initialStop,atr,extreme,currentStop,multiple].every(Number.isFinite)||atr<=0||multiple<=0||dir*(entry-initialStop)<=0||dir*(extreme-entry)<0||dir*(extreme-currentStop)<=0)throw Error('请填写有效的持仓后极值与当前保护价；做多极值不低于开仓价，做空反之，保护价不能越过极值。');
@@ -98,5 +150,5 @@ function profits(s,position,rows){
  const remaining=Math.max(0,1-total/100),remainingLoss=position.loss*remaining;
  return {rows:parsed,total,net:cumulative,remaining,remainingQuantity:position.quantity*remaining,netIfStop:cumulative-remainingLoss,netR:cumulative/position.loss};
 }
-const api={pyramidPercentages,wilderATR,analyze,profits,trailing,weekTargets,structureStop,settlement,priceDefaults};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
+const api={rsiSeries,setupAssessment,setupPercentages,pyramidPercentages,wilderATR,analyze,profits,trailing,weekTargets,structureStop,settlement,priceDefaults};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
 })(typeof window==='undefined'?{}:window);

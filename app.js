@@ -42,7 +42,7 @@ const el=id=>document.getElementById(id),value=id=>id==='side'?document.querySel
 function read(){const s={step:0};for(const id of ids){const v=value(id);s[id]=id==='side'?v:v===''?null:Number(v);}return s;}
 function update(save){
  try{
-  const s=read();el('cap-value').textContent=s.cap+'%';el('cap').setAttribute('aria-valuetext',s.cap+'%');el('stop-hint').textContent=s.side==='long'?'做多：跌到这个价格就退出':'做空：涨到这个价格就退出';const r=calculate(s);
+  const s=read();el('cap-value').textContent=s.cap+'%';el('cap').setAttribute('aria-valuetext',s.cap+'%');const r=calculate(s);
   el('error').textContent='';el('output').hidden=false;
   el('notional').textContent=fmt(r.notional)+' U';el('margin-label').textContent=(r.selected===null?'所需保证金':fmt(r.selected)+'倍对应的逐仓保证金');el('margin').textContent=r.margin===null?'无法匹配':fmt(r.margin)+' U';el('leverage-value').textContent=r.selected===null?'无可用倍数':fmt(r.selected)+'倍';el('leverage-caption').textContent='逐仓杠杆预算上限';
   el('risk-note').textContent='止损预计亏 '+fmt(r.loss)+' U'+(s.feeIn||s.feeOut||s.slip||s.reserve?'；已包含填写的费用及滑点假设':'；未计费用与滑点');

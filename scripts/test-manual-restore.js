@@ -2,7 +2,7 @@ const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/st
 const html=fs.readFileSync('index.html','utf8'),code=fs.readFileSync('planner-ui.js','utf8').replace('backendReady.then(connected=>{if(connected&&!busy)loadStock({autoPrices:true});});','');
 const fixture={...require('../tests/fixtures/nvda-history.json'),quote:{price:130,time:1795450000000,session:'fixture'}};
 class Element{constructor(){this.value='';this.children=[];this.listeners={};}append(...x){this.children.push(...x);}replaceChildren(...x){this.children=x;}setAttribute(){}dispatchEvent(e){this.listeners[e.type]?.(e);}addEventListener(n,f){this.listeners[n]=f;}}
-const storage=new Map();
+const storage=new Map([['profit-plan-week-v1',JSON.stringify({symbol:'NVDA',date:'2020-01-01'})]]);
 function boot(){
  const elements=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(x=>[x[1],new Element()]));
  for(const m of html.matchAll(/<input\b[^>]*id="([^"]+)"[^>]*>/g))elements[m[1]].value=m[0].match(/value="([^"]*)"/)?.[1]||'';
@@ -13,7 +13,7 @@ function boot(){
  vm.runInNewContext(code,context);return {elements,events,state};
 }
 (async()=>{
- let b=boot(),e=b.elements;await new Promise(r=>setImmediate(r));e['analysis-date'].value='2026-11-23';await e['analysis-date'].listeners.change();
+ let b=boot(),e=b.elements;assert.notEqual(e['analysis-date'].value,'2020-01-01');assert(html.includes('id="analysis-date" type="hidden"'));await new Promise(r=>setImmediate(r));e['analysis-date'].value='2026-11-23';await e['analysis-date'].listeners.change();
  for(const [id,value]of Object.entries({entry:'131.25',stop:'123.75',risk:'400',marginLimit:'2500'})){e[id].value=value;e[id].listeners.input({isTrusted:true});}b.events['trade-input-change']();
  let row=e['take-profit-rows'].children[0];row.children[0].children[0].value='144.25';row.children[0].children[0].listeners.input();row.children[1].children[0].value='35';row.children[1].children[0].listeners.input();
  const saved=JSON.parse(storage.get('position-manual-values-v1'));assert.equal(saved.fields.entry,'131.25');assert.equal(saved.rows[0].price,'144.25');

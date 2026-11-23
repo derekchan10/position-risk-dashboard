@@ -9,22 +9,35 @@ function calculate(s){
  if(s.side==='long'?s.stop>=s.entry:s.stop<=s.entry)throw Error(s.side==='long'?'做多时，止损价必须低于开仓价。':'做空时，止损价必须高于开仓价。');
  const exit=s.stop*(1+(s.side==='long'?-1:1)*s.slip/100);
  const unit=Math.abs(s.entry-exit)+s.entry*s.feeIn/100+exit*s.feeOut/100;
- let quantity=(s.risk-s.reserve)/unit;
- if(s.step>0)quantity=Math.floor(quantity/s.step)*s.step;
- if(quantity<=0)throw Error('按当前数量步长无法开仓，请重新设置预算或步长。');
- const notional=quantity*s.entry,loss=quantity*unit+s.reserve;
- const minLeverage=1,maxLeverage=s.cap/100*notional/loss;
  const platformMax=s.platformMax??20;
  if(!Number.isFinite(platformMax)||platformMax<1)throw Error('平台最高杠杆至少为1倍。');
- const lower=Math.ceil(minLeverage-1e-10),upper=Math.floor(Math.min(maxLeverage,platformMax)+1e-10);
- const reference=lower<=upper?upper:null;
- const selected=reference;
- const margin=selected===null?null:notional/selected;
- return {quantity,notional,loss,margin,exit,minLeverage,maxLeverage,reference,selected,lower,upper};
+ const marginLimit=s.marginLimit??null;
+ if(marginLimit!==null&&(!Number.isFinite(marginLimit)||marginLimit<=0))throw Error('保证金上限须大于0，或留空不限制。');
+ const roundQuantity=q=>s.step>0?Math.floor(q/s.step)*s.step:q;
+ let quantity=roundQuantity((s.risk-s.reserve)/unit);
+ if(quantity<=0)throw Error('按当前数量步长无法开仓，请重新设置预算或步长。');
+ const initialQuantity=quantity,minLeverage=1,lower=1;
+ let notional=quantity*s.entry,loss=quantity*unit+s.reserve,maxLeverage=s.cap/100*notional/loss;
+ let upper=Math.floor(Math.min(maxLeverage,platformMax)+1e-10),reference=upper>=lower?upper:null;
+ let margin=reference===null?null:notional/reference;
+ if(marginLimit!==null&&margin!==null&&margin>marginLimit+1e-8){
+  let found=false;
+  for(let leverage=reference;leverage>=1;leverage--){
+   const q=roundQuantity(Math.min(initialQuantity,marginLimit*leverage/s.entry));
+   if(q<=0)continue;
+   const candidateLoss=q*unit+s.reserve,candidateMargin=q*s.entry/leverage;
+   if(candidateLoss<=s.cap/100*candidateMargin+1e-8){quantity=q;reference=leverage;found=true;break;}
+  }
+  if(!found)throw Error('保证金上限内没有满足损失比例与数量步长的仓位，请提高上限或调整参数。');
+  notional=quantity*s.entry;loss=quantity*unit+s.reserve;maxLeverage=s.cap/100*notional/loss;
+  upper=Math.floor(Math.min(maxLeverage,platformMax)+1e-10);margin=notional/reference;
+ }
+ const selected=reference,marginCapped=quantity<initialQuantity-1e-10;
+ return {quantity,notional,loss,margin,exit,minLeverage,maxLeverage,reference,selected,lower,upper,marginCapped};
 }
 if(typeof module!=='undefined'&&module.exports){module.exports=calculate;return;}
 window.PositionRisk={calculate,read};
-const ids=['risk','entry','stop','side','cap','feeIn','feeOut','slip','reserve','step','liquidation','platformMax'];
+const ids=['risk','entry','stop','side','cap','feeIn','feeOut','slip','reserve','step','liquidation','platformMax','marginLimit'];
 const el=id=>document.getElementById(id),value=id=>id==='side'?document.querySelector('input[name=side]:checked').value:el(id).value,fmt=n=>n.toLocaleString('zh-CN',{maximumFractionDigits:2}),pct=n=>fmt(n*100)+'%';
 function read(){const s={};for(const id of ids){const v=value(id);s[id]=id==='side'?v:v===''?null:Number(v);}return s;}
 function update(save){
@@ -34,7 +47,7 @@ function update(save){
   el('error').textContent='';el('output').hidden=false;
   el('notional').textContent=fmt(r.notional)+' U';el('margin-label').textContent=(r.selected===null?'所需保证金':fmt(r.selected)+'倍对应的逐仓保证金');el('margin').textContent=r.margin===null?'无法匹配':fmt(r.margin)+' U';el('leverage-value').textContent=r.selected===null?'无可用倍数':fmt(r.selected)+'倍';el('leverage-caption').textContent='逐仓杠杆预算上限';
   el('risk-note').textContent='止损预计亏 '+fmt(r.loss)+' U'+(s.feeIn||s.feeOut||s.slip||s.reserve?'；已包含填写的费用及滑点假设':'；未计费用与滑点');
-  const warnings=[];if(r.selected===null)warnings.push('当前预算内没有符合条件的整数杠杆。请缩小仓位或重新评估预算，不要直接开到上限。');
+  const warnings=[];if(r.marginCapped)warnings.push('已按保证金上限缩小仓位，实际止损亏损低于预算。');if(r.selected===null)warnings.push('当前预算内没有符合条件的整数杠杆。请缩小仓位或重新评估预算，不要直接开到上限。');
   if(r.margin!==null&&r.loss/r.margin>s.cap/100+1e-10)warnings.push('止损损失超过你设置的保证金损失比例上限。');
   if(r.selected!==null&&r.selected>s.platformMax)warnings.push('所选杠杆超过填写的平台上限。');
   el('warning').textContent=warnings.join(' ');

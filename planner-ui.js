@@ -36,7 +36,7 @@ function renderAnalysis(){
   $('market-results').hidden=false;
   $('ma-values').replaceChildren(...analysis.mas.map(m=>{const div=document.createElement('div');div.className='ma-item';div.append(text('span','MA'+m.n+'（SMA）'),text('strong',m.value===null?'数据不足':f(m.value)));return div;}));
   $('zones-list').replaceChildren(...analysis.zones.slice(0,12).map(z=>{const div=document.createElement('div');div.className='zone-row';div.append(text('div',`${f(z.low)}${z.high>z.low?'～'+f(z.high):''} · ${f(z.r)}:1 · ${f(z.atrDistance)} ATR${z.confluence?' · 均线与水平区重合':''}`),text('small',z.labels.join('；')));return div;}));
-  $('atr-value').textContent=`ATR(14) ${f(analysis.atr)} 美元／股 · 开仓前日线波动快照，不预测涨跌。`;
+  $('atr-value').textContent=`日线 ATR(14，Wilder) ${f(analysis.atr)} 美元／股 · 截至 ${analysis.lastDate}，前复权、仅完整交易日。`;
   $('target-candidates').replaceChildren(...(analysis.targets.length?analysis.targets.map((z,i)=>{const div=document.createElement('div');div.className='zone-row';div.append(text('strong',`候选${i+1}：${f(z.target)} · 盈亏比 ${f(z.r)}:1 · ${f(z.atrDistance)} ATR`),text('small',z.labels.join('；')));return div;}):[text('p','暂无符合条件的水平候选。可以查看全部水平区；不会用远处均线补齐。')]));
   adoptTargets();
   $('market-meta').replaceChildren(text('span',`数据：${market.symbol} / ${market.currency}；最后采用 ${analysis.lastDate}，${analysis.count}根日线。获取时间 ${market.fetchedAt||'未提供'}。${market.quote?' 报价时间：'+(market.quote.time?new Date(market.quote.time).toISOString():market.quote.date||'未提供')+'；'+market.quote.session:''}`));

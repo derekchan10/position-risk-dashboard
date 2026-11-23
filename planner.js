@@ -1,5 +1,13 @@
 (function(root){
 'use strict';
+// Wilder ATR: seed with the first 14 true ranges, then smooth all subsequent bars.
+function wilderATR(bars,period=14){
+ if(bars.length<period)throw Error('日线不足，无法计算ATR。');
+ const trs=bars.map((b,i)=>{const prev=bars[i-1]?.close??b.close;return Math.max(b.high-b.low,Math.abs(b.high-prev),Math.abs(b.low-prev));});
+ let value=trs.slice(0,period).reduce((sum,tr)=>sum+tr,0)/period;
+ for(let i=period;i<trs.length;i++)value=(value*(period-1)+trs[i])/period;
+ return value;
+}
 function analyze(data,date,entry,stop,side){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('请选择开仓日期。');
  if(!(entry>0&&stop>0)||entry===stop)throw Error('请先填写有效的开仓价与止损价。');
@@ -10,8 +18,7 @@ function analyze(data,date,entry,stop,side){
  const valid=bars.every(b=>['open','high','low','close'].every(k=>Number.isFinite(b[k])&&b[k]>0));
  if(!valid)throw Error('行情包含无效价格。');
  const last=bars.at(-1),risk=Math.abs(entry-stop),mas=[20,50,100,200].map(n=>({n,value:bars.length>=n?bars.slice(-n).reduce((a,b)=>a+b.close,0)/n:null}));
- const trs=bars.slice(-14).map((b,i)=>{const idx=bars.length-14+i,p=bars[idx-1]?.close??b.close;return Math.max(b.high-b.low,Math.abs(b.high-p),Math.abs(b.low-p));});
- const atr=trs.reduce((a,b)=>a+b,0)/trs.length;
+ const atr=wilderATR(bars);
  const raw=[];const add=(p,label)=>{if(dir*(p-entry)>0)raw.push({price:p,label});};
  // Moving averages are auxiliary only; never enter horizontal target clustering.
  add(last.high,'前一交易日高点 '+last.date);add(last.low,'前一交易日低点 '+last.date);
@@ -40,8 +47,7 @@ function priceDefaults(data,side){
  const bars=data.bars.slice().sort((a,b)=>a.date.localeCompare(b.date));if(bars.length<14)throw Error('日线不足14根，无法生成止损参考。');
  const recent=bars.slice(-10),dir=side==='short'?-1:1;
  const base=dir===1?Math.min(...recent.map(b=>b.low)):Math.max(...recent.map(b=>b.high));
- const trs=bars.slice(-14).map((b,i)=>{const p=bars[bars.length-14+i-1]?.close??b.close;return Math.max(b.high-b.low,Math.abs(b.high-p),Math.abs(b.low-p));});
- const atr=trs.reduce((a,b)=>a+b,0)/14,stop=Math.round((base-dir*.1*atr)*100)/100;
+ const atr=wilderATR(bars),stop=Math.round((base-dir*.1*atr)*100)/100;
  return {entry,stop:stop>0&&dir*(entry-stop)>0?stop:null,base,atr,from:recent[0].date,to:recent.at(-1).date};
 }
 function weekTargets(analysis,maxATR){
@@ -81,5 +87,5 @@ function profits(s,position,rows){
  const remaining=Math.max(0,1-total/100),remainingLoss=position.loss*remaining;
  return {rows:parsed,total,net:cumulative,remaining,remainingQuantity:position.quantity*remaining,netIfStop:cumulative-remainingLoss,netR:cumulative/position.loss};
 }
-const api={analyze,profits,trailing,weekTargets,structureStop,settlement,priceDefaults};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
+const api={wilderATR,analyze,profits,trailing,weekTargets,structureStop,settlement,priceDefaults};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
 })(typeof window==='undefined'?{}:window);

@@ -20,6 +20,12 @@ function boot(){
  b=boot();e=b.elements;await new Promise(r=>setImmediate(r));assert.equal(e.entry.value,'131.25');assert.equal(e.stop.value,'123.75');assert.equal(e.risk.value,'400');assert.equal(e.marginLimit.value,'2500');
  await e['analysis-date'].listeners.change();assert.equal(e.entry.value,'131.25');assert.equal(e.stop.value,'123.75');assert.equal(e['take-profit-rows'].children[0].children[0].children[0].value,'144.25');assert.equal(e['take-profit-rows'].children[0].children[1].children[0].value,'35');
  await e['restore-market'].listeners.click();assert.equal(e.entry.value,'130.00');assert.equal(e.stop.value,'123.75');assert.equal(e.risk.value,'400');assert.equal(e['take-profit-rows'].children[0].children[0].children[0].value,'144.25');
+ // A failed quote must not remove the saved manual entry.
+ e.entry.value='132.25';e.entry.listeners.input({isTrusted:true});fixture.quote.price=0;
+ await e['restore-market'].listeners.click();assert.equal(JSON.parse(storage.get('position-manual-values-v1')).fields.entry,'132.25');assert.equal(e.entry.value,'132.25');fixture.quote.price=130;
+ b=boot();e=b.elements;await new Promise(r=>setImmediate(r));assert.equal(e.entry.value,'132.25');e['analysis-date'].value='2026-11-23';await e['analysis-date'].listeners.change();
+ // Manual exits remain editable but cannot turn a failing horizontal-space screen into a pass.
+ e.entry.value='140';e.entry.listeners.input({isTrusted:true});e.stop.value='130';e.stop.listeners.input({isTrusted:true});b.events['trade-input-change']();assert.match(e['market-status'].textContent,/空间偏小/);assert.equal(e['target-table'].hidden,false,'manual plan stays visible when automatic space screen fails');assert.match(e['market-error'].textContent,/0.37R/);assert(!e['market-error'].textContent.includes('达到1.5R'));assert.equal(e['take-profit-rows'].children[0].children[0].children[0].value,'144.25');
  b.state.side='short';b.events['trade-input-change']();assert(!Object.hasOwn(JSON.parse(storage.get('position-manual-values-v1')).fields,'stop'));
  console.log('PASS: manual prices/budgets/targets persist through reload and analysis; restore market updates entry only; direction clears overrides');
 })();

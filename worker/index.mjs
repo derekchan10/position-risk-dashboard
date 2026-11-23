@@ -30,7 +30,14 @@ async function refreshSession(env,sid,session){
 
 function json(obj,status=200,extra={}){return new Response(JSON.stringify(obj),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',...extra}});}
 function cookie(sid,age=1209600){return `cw_session=${sid}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`;}
-export function normalize(j,symbol,date){const bars=(j.data?.kline_list||[]).map(b=>{let d=String(b.date||'');if(/^\d{8}$/.test(d))d=d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6);else d=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(b.time_key));const row={date:d};for(const k of ['open','high','low','close']){row[k]=Number(b[k]);if(!Number.isFinite(row[k])||row[k]<=0)throw Error('行情价格无效。');}row.volume=Number(b.volume||0);return row;}).filter(b=>b.date<date).sort((a,b)=>a.date.localeCompare(b.date));if(!bars.length)throw Error('该股票或日期没有可用日线。');return {symbol,currency:'USD',source:'Futu OpenAPI / 前复权日线',sourceUrl:'https://open.futunn.com/api/quote/basic-data/history-kline',fetchedAt:new Date().toISOString(),bars};}
+const previousDate=date=>new Date(Date.parse(date)-86400000).toISOString().slice(0,10);
+export function completedThrough(date,state,now=new Date()){
+ const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}).formatToParts(now).map(p=>[p.type,p.value]));
+ const today=parts.year+'-'+parts.month+'-'+parts.day,hour=Number(parts.hour);
+ if(date===today&&((['AFTER_HOURS_BEGIN','AFTER_HOURS_END'].includes(state)&&hour>=12)||(state==='CLOSED'&&hour>=16)))return date;
+ return previousDate(date);
+}
+export function normalize(j,symbol,date,through=previousDate(date)){const bars=(j.data?.kline_list||[]).map(b=>{let d=String(b.date||'');if(/^\d{8}$/.test(d))d=d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6);else d=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(b.time_key));const row={date:d};for(const k of ['open','high','low','close']){row[k]=Number(b[k]);if(!Number.isFinite(row[k])||row[k]<=0)throw Error('行情价格无效。');}row.volume=Number(b.volume||0);return row;}).filter(b=>b.date<=through&&b.date<=date).sort((a,b)=>a.date.localeCompare(b.date));if(!bars.length)throw Error('该股票或日期没有可用日线。');return {symbol,analysisDate:date,completedThrough:through,currency:'USD',source:'Futu OpenAPI / 前复权日线',sourceUrl:'https://open.futunn.com/api/quote/basic-data/history-kline',fetchedAt:new Date().toISOString(),bars};}
 export default {async fetch(request,env){
  const url=new URL(request.url),path=url.pathname;
  if(!path.startsWith('/auth/')&&!path.startsWith('/api/'))return env.ASSETS.fetch(request);
@@ -66,10 +73,16 @@ export default {async fetch(request,env){
    // Per-session request throttle, never share one user's Futu credentials with other visitors.
    const last=await env.SESSIONS.get('throttle:'+sid+':'+symbol);if(last&&Date.now()-Number(last)<5000)return json({error:'请间隔5秒再查询。'},429);await env.SESSIONS.put('throttle:'+sid+':'+symbol,String(Date.now()),{expirationTtl:60});
    if(Date.now()>=session.expires)await refreshSession(env,sid,session);
-   const end=new Date(Date.parse(date)-86400000).toISOString().slice(0,10);
+   let state='UNKNOWN';
+   if(date===today){
+    try{let status;try{status=await upstream('/api/v1.0/quote/market-state',{code_list:['US.'+symbol]},session.token.access_token);}catch(e){if(!e.authExpired)throw e;await refreshSession(env,sid,session);status=await upstream('/api/v1.0/quote/market-state',{code_list:['US.'+symbol]},session.token.access_token);}
+     state=status.data?.market_state_list?.find(x=>x.code==='US.'+symbol)?.market_state||'UNKNOWN';
+    }catch(e){if(e.needsAuth)throw e;}
+   }
+   const end=completedThrough(date,state);
    const resource='/api/v1.0/quote/US.'+symbol+'/history-kline?'+new URLSearchParams({end,ktype:'2',autype:'1',num:'370',extended_time:'0'});
    let data;try{data=await upstream(resource,null,session.token.access_token);}catch(e){if(!e.authExpired)throw e;await refreshSession(env,sid,session);data=await upstream(resource,null,session.token.access_token);}
-   const result=normalize(data,symbol,date);
+   const result=normalize(data,symbol,date,end);result.marketState=state;result.sessionNote=date===today&&state==='UNKNOWN'?'收盘状态暂未确认，保守排除当天日线。':'';
    if(url.searchParams.get('quote')==='1'){
     const resource='/api/v1.0/quote/stock-quote';let quote;
     try{quote=await upstream(resource,{code_list:['US.'+symbol]},session.token.access_token);}catch(e){if(!e.authExpired)throw e;await refreshSession(env,sid,session);quote=await upstream(resource,{code_list:['US.'+symbol]},session.token.access_token);}

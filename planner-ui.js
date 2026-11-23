@@ -55,7 +55,7 @@ function renderSnapshot(){
    $('snapshot-price').textContent=price(Number(quote.price))+' USD';
    $('snapshot-time').textContent=quote.time?'报价：'+beijingTime(quote.time):quote.date?'仅提供美股交易日 '+String(quote.date).replace(/^(\d{4})(\d{2})(\d{2})$/,'$1-$2-$3')+'，未提供报价时间':'报价时间未提供';
   }else $('snapshot-time').textContent='本次未提供当前报价';
-  const bars=market.bars.filter(b=>b.date<$('analysis-date').value).sort((a,b)=>a.date.localeCompare(b.date));
+  const bars=TradePlanner.completedBars(market,$('analysis-date').value);
   if(bars.length){
    const extreme=bars.slice(-10).reduce((a,b)=>short?(b.high>=a.high?b:a):(b.low<=a.low?b:a));
    $('snapshot-extreme').textContent=price(short?extreme.high:extreme.low)+' · '+extreme.date;
@@ -101,13 +101,13 @@ function renderAnalysis(){
 
   $('target-candidates').replaceChildren(...(analysis.targets.length?analysis.targets.map((z,i)=>{const div=document.createElement('div');div.className='zone-row';div.append(text('strong',`候选${i+1}：${price(z.target)} · 盈亏比 ${f(z.r)}:1 · ${f(z.atrDistance)} ATR`),text('small',z.labels.join('；')));return div;}):[text('p','暂无符合条件的水平候选。可以查看全部水平区。')]));
   adoptTargets();
-  $('market-meta').replaceChildren(text('span',`数据：${market.symbol} / ${market.currency}；最后采用 ${analysis.lastDate}（美股交易日），${analysis.count}根日线。获取时间 ${beijingTime(market.fetchedAt)}。${market.quote?' 报价时间：'+(market.quote.time?beijingTime(market.quote.time):'仅提供美股交易日 '+(market.quote.date||'未提供'))+'；'+market.quote.session:''}`));
+  $('market-meta').replaceChildren(text('span',`数据：${market.symbol} / ${market.currency}；最后采用 ${analysis.lastDate}（美股交易日），${analysis.count}根日线。${market.sessionNote||''}获取时间 ${beijingTime(market.fetchedAt)}。${market.quote?' 报价时间：'+(market.quote.time?beijingTime(market.quote.time):'仅提供美股交易日 '+(market.quote.date||'未提供'))+'；'+market.quote.session:''}`));
   if(market.sourceUrl){const a=document.createElement('a');a.textContent=' 查看行情来源';a.href=market.sourceUrl.startsWith('https://')?market.sourceUrl:'https://finance.yahoo.com/';a.target='_blank';a.rel='noopener noreferrer';$('market-meta').append(a);}
   const gap=(Date.parse($('analysis-date').value)-Date.parse(analysis.lastDate))/86400000;
   const near=analysis.zones[0],dir=s.side==='short'?-1:1,risk=Math.abs(s.entry-s.stop);
-  const recent=market.bars.filter(b=>b.date<$('analysis-date').value).slice(-10);
+  const recent=TradePlanner.completedBars(market,$('analysis-date').value).slice(-10);
   const base=dir===1?Math.min(...recent.map(b=>b.low)):Math.max(...recent.map(b=>b.high));
-  const eligible=analysis.targets.length>0;
+  const eligible=week.targets.length>0;
   const level=s.side==='long'?'压力':'支撑';
   $('market-status').textContent=eligible?'空间达标 · 入场需另行确认':!near?'参考不足 · 缺少水平目标':near.r<1.5?'空间偏小 · 低于筛选门槛':'目标偏远 · 超出距离筛选';
   $('market-status').parentElement?.setAttribute('data-state',eligible?'ready':'wait');
@@ -122,7 +122,7 @@ function renderAnalysis(){
   renderPriceChart(s);
   $('atr-distances').replaceChildren(text('p',`止损距离 ${f(risk/analysis.atr)} ATR；距近期${dir===1?'低':'高'}点 ${f(Math.abs(s.entry-base)/analysis.atr)} ATR；目标最远 ${f(maxATR)} ATR。`),...analysis.targets.map((z,i)=>text('p',`第${i+1}档目标距离 ${f(z.atrDistance)} ATR`)));
   $('decision-evidence').replaceChildren(...evidence.map(([label,value])=>{const row=text('div','');row.className='evidence-row';row.append(text('span',label),text('strong',value));return row;}));
-  $('target-table').hidden=!eligible;$('profit-note').hidden=!eligible;
+  $('target-table').hidden=!analysis.targets.length;$('profit-note').hidden=!analysis.targets.length;
   if(gap>5)$('market-error').textContent+=' 日线数据距分析日超过5天，请核对数据日期。';
 
  }catch(e){analysis=null;adoptTargets();$('market-results').hidden=true;$('target-table').hidden=true;$('profit-note').hidden=true;$('market-error').textContent=e.message;}
@@ -141,7 +141,7 @@ function renderSetupObservation(){
 }
 function renderPriceChart(s){
  if(![s.entry,s.stop].every(v=>Number.isFinite(v)&&v>0)){$('price-chart').replaceChildren();return;}
- const bars=market.bars.filter(b=>b.date<$('analysis-date').value).sort((a,b)=>a.date.localeCompare(b.date)).slice(-90);
+ const bars=TradePlanner.completedBars(market,$('analysis-date').value).slice(-90);
  if(bars.length<2){$('price-chart').replaceChildren();$('chart-legend').replaceChildren();return;}
  const targets=analysis.targets,zones=targets.length?targets:analysis.zones.slice(0,3),short=s.side==='short',role=short?'支撑':'压力';
  const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -189,7 +189,7 @@ function renderPriceChart(s){
 function inspectChart(event){
  if(event.type==='keydown'&&!['Enter',' '].includes(event.key))return;
  const candle=event.target.closest?.('[data-bar]');
- if(candle){const bars=market?.bars.filter(b=>b.date<$('analysis-date').value).sort((a,b)=>a.date.localeCompare(b.date)).slice(-90),bar=bars?.[Number(candle.getAttribute('data-bar'))];if(bar)$('chart-focus').textContent=`${bar.date}（美股交易日）· 开 ${price(bar.open)} / 高 ${price(bar.high)} / 低 ${price(bar.low)} / 收 ${price(bar.close)}`;return;}
+ if(candle){const bars=market?TradePlanner.completedBars(market,$('analysis-date').value).slice(-90):[],bar=bars?.[Number(candle.getAttribute('data-bar'))];if(bar)$('chart-focus').textContent=`${bar.date}（美股交易日）· 开 ${price(bar.open)} / 高 ${price(bar.high)} / 低 ${price(bar.low)} / 收 ${price(bar.close)}`;return;}
  const marker=event.target.closest?.('[data-zone]');if(!marker)return;
  const index=Number(marker.getAttribute('data-zone')),zones=analysis?.targets.length?analysis.targets:analysis?.zones.slice(0,3),zone=zones?.[index];
  $('chart-focus').textContent=zone?`${window.PositionRisk.read().side==='short'?'潜在支撑':'潜在压力'} ${price(zone.low)}${zone.high>zone.low?' ～ '+price(zone.high):''} · 距开仓 ${f(zone.atrDistance)} ATR · 来源：${zone.labels.join('；')}`:'开仓和止损是当前交易参数，可在左侧修改；本图只展示计划，不执行交易。';
@@ -218,7 +218,7 @@ async function loadStock(options={}){
   const responseSide=window.PositionRisk.read().side;
   if(autoPrices||pendingEntryReset||options.restoreMarket){
 
-   const defaults=TradePlanner.priceDefaults(j,responseSide,buffer());const keep=manual.context===contextKey()?manual.fields:{};if(!Object.hasOwn(keep,'entry'))$('entry').value=Number(defaults.entry).toFixed(2);if(!options.restoreMarket&&!Object.hasOwn(keep,'stop'))$('stop').value=defaults.stop===null?'':Number(defaults.stop).toFixed(2);priceBinding=symbol;pendingEntryReset=false;
+   const defaults=TradePlanner.priceDefaults(j,responseSide,buffer());if(options.restoreMarket&&$('entry').value===entryBefore&&responseSide===sideBefore){delete manual.fields.entry;storeManual();}const keep=manual.context===contextKey()?manual.fields:{};if(!Object.hasOwn(keep,'entry'))$('entry').value=Number(defaults.entry).toFixed(2);if(!options.restoreMarket&&!Object.hasOwn(keep,'stop'))$('stop').value=defaults.stop===null?'':Number(defaults.stop).toFixed(2);priceBinding=symbol;pendingEntryReset=false;
    const qt=j.quote?.time?beijingTime(j.quote.time):'仅提供美股交易日 '+(j.quote?.date||'未提供');
    $('auto-price-note').textContent=`止损参考：近10日${responseSide==='short'?'高点＋':'低点－'}${buffer()} ATR${buffer()===.1?'（较小缓冲）':''}，可手动调整。`;$('auto-price-note').title=`报价时间 ${qt}；近期极值 ${price(defaults.base)}；区间 ${defaults.from} 至 ${defaults.to}`;
    refreshSizing();
@@ -267,7 +267,7 @@ $('stock-symbol').addEventListener('input',()=>{
  $('entry').value='';$('stop').value='';refreshSizing();$('error').textContent='';$('plan-error').textContent='';$('plan-trade-context').textContent='等待新股票报价';$('auto-price-note').textContent='切换股票后自动获取新报价及止损参考，亏损预算保持不变。';$('market-status').textContent='等待股票代码输入完成…';$('market-error').textContent='';
  if(/^[A-Z][A-Z0-9.-]{0,14}$/.test($('stock-symbol').value.trim().toUpperCase()))autoTimer=setTimeout(()=>loadStock({autoPrices:true}),900);
 });
-$('restore-market').addEventListener('click',()=>{if(busy)return;delete manual.fields.entry;storeManual();return loadStock({restoreMarket:true});});
+$('restore-market').addEventListener('click',()=>{if(busy)return;return loadStock({restoreMarket:true});});
 $('stock-symbol').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(autoTimer);loadStock({autoPrices:true});}});
 for(const id of ['entry','stop','risk','marginLimit']){
  const field=$(id);
@@ -279,7 +279,7 @@ for(const id of ['entry','stop','risk','marginLimit']){
 function applyBuffer(){
  if(!market){pendingBuffer=true;return;}
  try{
-  const s=window.PositionRisk.read(),data={...market,bars:market.bars.filter(b=>b.date<$('analysis-date').value),quote:{price:s.entry}};
+  const s=window.PositionRisk.read(),data={...market,bars:TradePlanner.completedBars(market,$('analysis-date').value),quote:{price:s.entry}};
   const defaults=TradePlanner.priceDefaults(data,s.side,buffer());
   $('stop').value=defaults.stop===null?'':defaults.stop.toFixed(2);
   $('auto-price-note').textContent=`止损参考：近10日${s.side==='short'?'高点＋':'低点－'}${buffer()} ATR${buffer()===.1?'（较小缓冲）':''}，可手动调整。`;

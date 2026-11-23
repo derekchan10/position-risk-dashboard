@@ -8,12 +8,17 @@ function wilderATR(bars,period=14){
  for(let i=period;i<trs.length;i++)value=(value*(period-1)+trs[i])/period;
  return value;
 }
+// Same-day bars require server confirmation of a finished regular session.
+function completedBars(data,date){
+ const includeToday=data.analysisDate===date&&data.completedThrough===date;
+ return data.bars.filter(b=>b.date<date||(includeToday&&b.date===date)).sort((a,b)=>a.date.localeCompare(b.date));
+}
 function analyze(data,date,entry,stop,side){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('请选择开仓日期。');
  if(!(entry>0&&stop>0)||entry===stop)throw Error('请先填写有效的开仓价与止损价。');
  const dir=side==='short'?-1:1;
  if(dir*(entry-stop)<=0)throw Error('止损价与交易方向不匹配。');
- const bars=data.bars.filter(b=>b.date<date).sort((a,b)=>a.date.localeCompare(b.date));
+ const bars=completedBars(data,date);
  if(bars.length<20)throw Error('该日期之前不足20根日线，无法生成分析。');
  const valid=bars.every(b=>['open','high','low','close'].every(k=>Number.isFinite(b[k])&&b[k]>0));
  if(!valid)throw Error('行情包含无效价格。');
@@ -22,7 +27,7 @@ function analyze(data,date,entry,stop,side){
  const role=dir===1?'潜在压力':'潜在支撑',history=bars.slice(-252),offset=bars.length-history.length;
  const distance=Math.max(entry*.003,Math.min(atr*.2,entry*.01));
  const raw=[];const add=(p,source,index)=>{if(dir*(p-entry)>0)raw.push({price:p,label:role+' · '+source,index});};
- add(last.high,'前一交易日高点 '+last.date,bars.length-1);add(last.low,'前一交易日低点 '+last.date,bars.length-1);
+ add(last.high,'最近完整交易日高点 '+last.date,bars.length-1);add(last.low,'最近完整交易日低点 '+last.date,bars.length-1);
  for(let i=Math.max(2,offset);i<bars.length-2;i++){
   const b=bars[i],around=[bars[i-2],bars[i-1],bars[i+1],bars[i+2]];
   if(around.every(x=>b.high>=x.high)&&around.some(x=>b.high>x.high))add(b.high,'历史局部高点 '+b.date,i);
@@ -67,7 +72,7 @@ function rsiSeries(bars,period=14){
  return result;
 }
 function setupAssessment(data,date,analysis,maxATR=4){
- const bars=data.bars.filter(b=>b.date<date).sort((a,b)=>a.date.localeCompare(b.date)),short=analysis.side==='short',dir=short?-1:1;
+ const bars=completedBars(data,date),short=analysis.side==='short',dir=short?-1:1;
  const names=short?['超涨背景','已回落','剩余空间']:['超跌背景','已反弹','剩余空间'];
  const fallback={names,extent:'数据不足',progress:'待更新',space:'待确认',profile:'observe',profileLabel:'仅作预案',reason:'不足24根完整日线，保留原分配方式；不影响开仓筛选。',facts:[],lastDate:bars.at(-1)?.date||'',applicable:false,suggestedRetain:0};
  if(bars.length<24)return fallback;
@@ -166,5 +171,5 @@ function profits(s,position,rows){
  const remaining=Math.max(0,1-total/100),remainingLoss=position.loss*remaining;
  return {rows:parsed,total,net:cumulative,remaining,remainingQuantity:position.quantity*remaining,netIfStop:cumulative-remainingLoss,netR:cumulative/position.loss};
 }
-const api={rsiSeries,setupAssessment,setupPercentages,pyramidPercentages,wilderATR,analyze,profits,trailing,weekTargets,structureStop,settlement,priceDefaults};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
+const api={completedBars,rsiSeries,setupAssessment,setupPercentages,pyramidPercentages,wilderATR,analyze,profits,trailing,weekTargets,structureStop,settlement,priceDefaults};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
 })(typeof window==='undefined'?{}:window);

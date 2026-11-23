@@ -37,13 +37,12 @@ function calculate(s){
 }
 if(typeof module!=='undefined'&&module.exports){module.exports=calculate;return;}
 window.PositionRisk={calculate,read};
-const ids=['risk','entry','stop','side','cap','feeIn','feeOut','slip','reserve','step','liquidation','platformMax','marginLimit'];
+const ids=['risk','entry','stop','side','cap','feeIn','feeOut','slip','reserve','platformMax','marginLimit'];
 const el=id=>document.getElementById(id),value=id=>id==='side'?document.querySelector('input[name=side]:checked').value:el(id).value,fmt=n=>n.toLocaleString('zh-CN',{maximumFractionDigits:2}),pct=n=>fmt(n*100)+'%';
-function read(){const s={};for(const id of ids){const v=value(id);s[id]=id==='side'?v:v===''?null:Number(v);}return s;}
+function read(){const s={step:0};for(const id of ids){const v=value(id);s[id]=id==='side'?v:v===''?null:Number(v);}return s;}
 function update(save){
  try{
   const s=read();el('cap-value').textContent=s.cap+'%';el('cap').setAttribute('aria-valuetext',s.cap+'%');el('stop-hint').textContent=s.side==='long'?'做多：跌到这个价格就退出':'做空：涨到这个价格就退出';const r=calculate(s);
-  if(s.liquidation!==null&&(!Number.isFinite(s.liquidation)||s.liquidation<=0))throw Error('预估强平价必须大于0。');
   el('error').textContent='';el('output').hidden=false;
   el('notional').textContent=fmt(r.notional)+' U';el('margin-label').textContent=(r.selected===null?'所需保证金':fmt(r.selected)+'倍对应的逐仓保证金');el('margin').textContent=r.margin===null?'无法匹配':fmt(r.margin)+' U';el('leverage-value').textContent=r.selected===null?'无可用倍数':fmt(r.selected)+'倍';el('leverage-caption').textContent='逐仓杠杆预算上限';
   el('risk-note').textContent='止损预计亏 '+fmt(r.loss)+' U'+(s.feeIn||s.feeOut||s.slip||s.reserve?'；已包含填写的费用及滑点假设':'；未计费用与滑点');
@@ -55,12 +54,11 @@ function update(save){
   el('reference-status').textContent='仅为预算上限，未核验强平。'+(r.margin===null?'':' 止损损失约占本笔保证金 '+pct(r.loss/r.margin)+'。');
   el('advanced-note').textContent='等效数量 '+fmt(r.quantity)+'；止损距离 '+pct(Math.abs(s.entry-s.stop)/s.entry)+'；假设止损成交价 '+r.exit.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})+'。账户本金不参与计算。按填写的损失比例，理论最低保证金 '+fmt(r.loss/(s.cap/100))+' U，理论杠杆上限 '+fmt(r.maxLeverage)+'倍；平台是否支持及强平位置需另行核实。';
   el('rows').replaceChildren(...[...new Set([1,2,3,5,10,15,20,r.reference].filter(x=>x!==null))].sort((a,b)=>a-b).map(l=>{
-   const tr=document.createElement('tr'),m=r.notional/l,checks=[];if(l>s.platformMax)checks.push('超过平台上限');
+   const tr=document.createElement('tr'),m=r.notional/l,checks=[];if(l===r.selected)tr.className='current-leverage';if(s.marginLimit!==null&&m>s.marginLimit+1e-8)checks.push('超过保证金上限');if(l>s.platformMax)checks.push('超过平台上限');
    if(r.loss/m>s.cap/100)checks.push('超过损失比例上限');
    [fmt(l)+'倍',fmt(m)+' U',pct(r.loss/m),checks.join('；')||'通过预算，未核验强平'].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.append(td);});return tr;
   }));
-  el('liq-note').textContent=s.liquidation===null?'未填写强平价：参考倍数未通过强平核验，请在平台核对后再决策。':(s.side==='long'?s.liquidation<r.exit:s.liquidation>r.exit)?'所填强平价在假设止损成交价之外；仍需核实标记价格与跳空、滑点下的缓冲。':'强平价已到达或越过假设止损成交价，可能先强平。';
- }catch(e){el('error').textContent=e.message;el('output').hidden=true;el('advanced-note').textContent='请先修正输入。';el('rows').replaceChildren();el('liq-note').textContent='';}
+ }catch(e){el('error').textContent=e.message;el('output').hidden=true;el('advanced-note').textContent='请先修正输入。';el('rows').replaceChildren();}
  window.dispatchEvent(new Event('trade-input-change'));
  if(save){try{localStorage.setItem('position-calculator-default70-v6',JSON.stringify(Object.fromEntries(ids.map(id=>[id,value(id)]))));}catch(e){}}
 }

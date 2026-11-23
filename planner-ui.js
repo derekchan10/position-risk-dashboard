@@ -208,7 +208,7 @@ $('stock-symbol').addEventListener('input',()=>{
  if(/^[A-Z][A-Z0-9.-]{0,14}$/.test($('stock-symbol').value.trim().toUpperCase()))autoTimer=setTimeout(()=>loadStock({autoPrices:true}),900);
 });
 $('stock-symbol').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(autoTimer);loadStock({autoPrices:true});}});
-for(const id of ['entry','stop','liquidation']){
+for(const id of ['entry','stop']){
  const field=$(id);
  const format=()=>{if(field.value!==''&&Number.isFinite(Number(field.value)))field.value=Number(field.value).toFixed(2);};
  format();field.addEventListener('blur',format);

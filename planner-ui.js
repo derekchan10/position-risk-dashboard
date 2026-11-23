@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id),f=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:2});
-let market=null,analysis=null,signature='',busy=false,cloudBackend=false,backendReady=Promise.resolve(),requestVersion=0,controller=null,autoTimer=null,priceBinding=null,authorized=null,pendingBuffer=false;
+let market=null,analysis=null,signature='',busy=false,cloudBackend=false,backendReady=Promise.resolve(),requestVersion=0,controller=null,autoTimer=null,priceBinding=null,authorized=null,pendingBuffer=false,pendingEntryReset=false;
 const price=n=>Number(n).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});
 let previousSide=window.PositionRisk.read().side;
 const buffer=()=>Number($('stop-buffer').value)||.1;
@@ -141,9 +141,9 @@ async function loadStock(options={}){
   if(!response.ok){if(j.needsAuth)await futuStatus();throw Error(j.error||'富途行情读取失败');}
   if($('stock-symbol').value.trim().toUpperCase()!==symbol||$('analysis-date').value!==requestedDate)throw Error('股票或日期已改变，请重新生成。');
   const responseSide=window.PositionRisk.read().side;
-  if(autoPrices){
+  if(autoPrices||pendingEntryReset){
    if($('entry').value!==entryBefore||$('stop').value!==stopBefore)throw Error('你已手动修改价格，本次自动填价已取消，请重新生成。');
-   const defaults=TradePlanner.priceDefaults(j,responseSide,buffer());$('entry').value=Number(defaults.entry).toFixed(2);$('stop').value=defaults.stop===null?'':Number(defaults.stop).toFixed(2);priceBinding=symbol;
+   const defaults=TradePlanner.priceDefaults(j,responseSide,buffer());$('entry').value=Number(defaults.entry).toFixed(2);$('stop').value=defaults.stop===null?'':Number(defaults.stop).toFixed(2);priceBinding=symbol;pendingEntryReset=false;
    const qt=j.quote?.time?new Date(j.quote.time).toLocaleString('zh-CN',{timeZone:'America/New_York'})+' 美东':j.quote?.date||'时间未提供';
    $('auto-price-note').textContent=`止损参考：近10日${responseSide==='short'?'高点＋':'低点－'}${buffer()} ATR${buffer()===.1?'（较小缓冲）':''}，可手动调整。`;$('auto-price-note').title=`报价时间 ${qt}；近期极值 ${price(defaults.base)}；区间 ${defaults.from} 至 ${defaults.to}`;
    refreshSizing();
@@ -199,9 +199,13 @@ window.addEventListener('trade-input-change',()=>{
  const side=window.PositionRisk.read().side;
  if(side!==previousSide){
   previousSide=side;
-  if(market){applyBuffer();return;}
-  pendingBuffer=true;
-  if(!busy)loadStock();
+  const quote=Number(market?.quote?.price);
+  if(market&&Number.isFinite(quote)&&quote>0){
+   $('entry').value=quote.toFixed(2);priceBinding=$('stock-symbol').value.trim().toUpperCase();
+   pendingEntryReset=false;applyBuffer();return;
+  }
+  pendingEntryReset=true;pendingBuffer=true;
+  if(!busy)loadStock({autoPrices:true});
   return;
  }
  renderPlan();authorizationHint();

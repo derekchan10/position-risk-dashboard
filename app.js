@@ -47,8 +47,8 @@ function update(save){
   }));
   el('liq-note').textContent=s.liquidation===null?'未填写强平价：参考倍数未通过强平核验，请在平台核对后再决策。':(s.side==='long'?s.liquidation<r.exit:s.liquidation>r.exit)?'所填强平价在假设止损成交价之外；仍需核实标记价格与跳空、滑点下的缓冲。':'强平价已到达或越过假设止损成交价，可能先强平。';
  }catch(e){el('error').textContent=e.message;el('output').hidden=true;el('advanced-note').textContent='请先修正输入。';el('rows').replaceChildren();el('liq-note').textContent='';}
- if(save){try{localStorage.setItem('position-calculator-trade-v4',JSON.stringify(Object.fromEntries(ids.map(id=>[id,value(id)]))));}catch(e){}}
+ if(save){try{localStorage.setItem('position-calculator-fees-v5',JSON.stringify(Object.fromEntries(ids.map(id=>[id,value(id)]))));}catch(e){}}
 }
-try{const saved=JSON.parse(localStorage.getItem('position-calculator-trade-v4')||'null');if(saved)for(const id of ids)if(Object.hasOwn(saved,id)){if(id==='side'){const radio=document.querySelector('input[name=side][value="'+(saved[id]==='short'?'short':'long')+'"]');radio.checked=true;}else el(id).value=saved[id];}}catch(e){}
+try{const current=localStorage.getItem('position-calculator-fees-v5');const saved=JSON.parse(current||localStorage.getItem('position-calculator-trade-v4')||'null');if(saved&&!current){for(const key of ['feeIn','feeOut'])if(saved[key]===''||saved[key]==null||Number(saved[key])===0)saved[key]='0.05';}if(saved)for(const id of ids)if(Object.hasOwn(saved,id)){if(id==='side'){const radio=document.querySelector('input[name=side][value="'+(saved[id]==='short'?'short':'long')+'"]');radio.checked=true;}else el(id).value=saved[id];}}catch(e){}
 ids.filter(id=>id!=='side').forEach(id=>el(id).addEventListener('input',()=>update(true)));document.querySelectorAll('input[name=side]').forEach(r=>r.addEventListener('change',()=>update(true)));update(false);
 })();

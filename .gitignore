@@ -4,3 +4,5 @@ __pycache__/
 _worker-site/
 worker/.wrangler/
 worker/.dev.vars
+
+.wrangler/

@@ -40,7 +40,8 @@ function renderSnapshot(){
 function authorizationHint(){
  if(authorized!==false)return;
  $('target-table').hidden=true;$('profit-note').hidden=true;
- $('market-status').textContent='请先授权富途行情，授权后自动获取价格与止盈建议。';
+ $('market-status').textContent='先授权，再判断';
+ $('market-error').textContent='连接富途行情后，自动评估开仓位置与止盈空间。';
  $('plan-trade-context').textContent='等待富途授权';
  if(!$('entry').value||!$('stop').value){$('error').textContent='';$('plan-error').textContent='';}
 }
@@ -77,9 +78,10 @@ function renderAnalysis(){
   const recent=market.bars.filter(b=>b.date<$('analysis-date').value).slice(-10);
   const base=dir===1?Math.min(...recent.map(b=>b.low)):Math.max(...recent.map(b=>b.high));
   const eligible=analysis.targets.length>0;
-  $('market-status').textContent=eligible?'符合当前筛选条件':'暂不开仓 · 等待机会';
+  const level=s.side==='long'?'压力':'支撑';
+  $('market-status').textContent=eligible?'空间达标 · 可纳入计划':!near?'先观望 · 缺少有效目标':near.r<1.5?'暂不开仓 · 收益空间不足':'先等待 · 目标距离偏远';
   $('market-status').parentElement?.setAttribute('data-state',eligible?'ready':'wait');
-  $('market-error').textContent=eligible?'按水平区分批止盈；通过筛选不代表价格一定能到达。':near&&near.r<1.5?'最近水平区的收益空间不足1.5R，不追远处目标。':analysis.weekReason;
+  $('market-error').textContent=eligible?`最近${level}位提供 ${f(near.r)}R 空间，达到 ≥1.5R 门槛；可按右侧计划分批止盈，仍需自行确认入场信号。`:!near?`当前价前方没有已确认的水平${level}区，暂不生成开仓计划。`:near.r<1.5?`到最近${level}位仅有 ${f(near.r)}R，低于 1.5R 门槛。等待更合适的位置，不跳过近处${level}寻找远目标。`:`最近${level}位距开仓价 ${f(near.atrDistance)} ATR，超过 ${f(maxATR)} ATR 筛选上限，暂不纳入一周交易计划。`;
   const evidence=[
    ['止损距离',`${f(risk)} 美元 · ${f(risk/analysis.atr)} ATR`],
    [dir===1?'距近10日低点':'距近10日高点',`${f(Math.abs(s.entry-base))} 美元 · ${f(Math.abs(s.entry-base)/analysis.atr)} ATR`],
@@ -123,7 +125,7 @@ async function loadStock(options={}){
    if(defaults.stop===null)throw Error('近期极值不在正确止损方向，请根据结构手动填写止损；不会沿用旧股票价格。');
   }
   market=j;renderSnapshot();renderAnalysis();savePlan();
- }catch(e){if(requestId!==requestVersion||e.name==='AbortError')return;$('market-error').textContent=e.message;$('market-status').textContent='未生成新建议；不会沿用旧股票数据。';}
+ }catch(e){if(requestId!==requestVersion||e.name==='AbortError')return;$('market-error').textContent=e.message;$('market-status').textContent='暂无法判断 · 行情未就绪';}
  finally{if(requestId===requestVersion){busy=false;}}
 }
 function adoptTargets(){

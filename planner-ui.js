@@ -182,11 +182,12 @@ function adoptTargets(){
  const targets=analysis?.targets||[],key=JSON.stringify([market?.symbol,analysis?.side,analysis?.date,targets.map(z=>z.target.toFixed(2))]);
  if(key!==targetSignature){
   targetSignature=key;$('take-profit-rows').replaceChildren();ratioHelpButtons.length=0;
+  const percentages=TradePlanner.pyramidPercentages(targets.length,retention());
   rows=targets.map((z,i)=>{const row=createTargetRow(i);row.p.value=z.target.toFixed(2);
-   const allocation=Math.round((100-retention())*100),cents=Math.floor(allocation/targets.length)+(i<allocation%targets.length?1:0);row.percent.value=String(cents/100);return row;});
+   row.percent.value=String(percentages[i]);return row;});
  }
  $('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');
- $('target-count').textContent=targets.length?`${targets.length}档候选 · 比例可调整`:'';
+ $('target-count').textContent=targets.length?`${targets.length}档候选 · 金字塔平仓`:'';
  renderPlan();savePlan();
 }
 async function futuStatus(autoSelect=false){
@@ -227,8 +228,8 @@ function applyBuffer(){
 }
 $('retain-position').addEventListener('input',()=>{
  $('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');
- const allocation=Math.round((100-retention())*100);
- rows.forEach((row,i)=>{row.percent.value=String((Math.floor(allocation/rows.length)+(i<allocation%rows.length?1:0))/100);});
+ const percentages=TradePlanner.pyramidPercentages(rows.length,retention());
+ rows.forEach((row,i)=>{row.percent.value=String(percentages[i]);});
  renderPlan();savePlan();
 });
 $('stop-buffer').addEventListener('change',()=>{savePlan();applyBuffer();});

@@ -52,6 +52,15 @@ function priceDefaults(data,side,buffer=.1){
  const atr=wilderATR(bars),stop=Math.round((base-dir*buffer*atr)*100)/100;
  return {entry,stop:stop>0&&dir*(entry-stop)>0?stop:null,base,atr,from:recent[0].date,to:recent.at(-1).date};
 }
+function pyramidPercentages(count,retain=0){
+ if(!Number.isInteger(count)||count<0||!Number.isFinite(retain)||retain<0||retain>100)throw Error('档数或预留比例无效。');
+ if(!count)return [];
+ const total=Math.round((100-retain)*100),weight=count*(count+1)/2;
+ const parts=Array.from({length:count},(_,i)=>{const exact=total*(count-i)/weight;return {i,cents:Math.floor(exact),fraction:exact-Math.floor(exact)};});
+ let remainder=total-parts.reduce((sum,part)=>sum+part.cents,0);
+ for(const part of [...parts].sort((a,b)=>b.fraction-a.fraction||a.i-b.i)){if(remainder--<=0)break;part.cents++;}
+ return parts.map(part=>part.cents/100);
+}
 function weekTargets(analysis,maxATR){
  const near=analysis.zones[0];if(!near)return {targets:[],reason:'暂无前方水平区，不生成固定止盈。'};
  if(near.r<1.5)return {targets:[],reason:'最近水平区不足1.5R，按一周规则放弃这次开仓；不跳过近处压力寻找远目标。'};
@@ -89,5 +98,5 @@ function profits(s,position,rows){
  const remaining=Math.max(0,1-total/100),remainingLoss=position.loss*remaining;
  return {rows:parsed,total,net:cumulative,remaining,remainingQuantity:position.quantity*remaining,netIfStop:cumulative-remainingLoss,netR:cumulative/position.loss};
 }
-const api={wilderATR,analyze,profits,trailing,weekTargets,structureStop,settlement,priceDefaults};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
+const api={pyramidPercentages,wilderATR,analyze,profits,trailing,weekTargets,structureStop,settlement,priceDefaults};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
 })(typeof window==='undefined'?{}:window);

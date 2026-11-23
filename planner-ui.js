@@ -4,6 +4,7 @@ const $=id=>document.getElementById(id),f=n=>Number(n).toLocaleString('zh-CN',{m
 let market=null,analysis=null,signature='',busy=false,cloudBackend=false,backendReady=Promise.resolve(),requestVersion=0,controller=null,autoTimer=null,priceBinding=null,authorized=null,pendingBuffer=false,pendingEntryReset=false;
 const price=n=>Number(n).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});
 let previousSide=window.PositionRisk.read().side;
+const retention=()=>Math.min(100,Math.max(0,Number($('retain-position').value)||0));
 const buffer=()=>Number($('stop-buffer').value)||.1;
 const now=new Date(),ny=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 $('analysis-date').value=ny;$('analysis-date').max=ny;
@@ -17,10 +18,12 @@ function createTargetRow(i){
  p.setAttribute('aria-label',`第${i+1}档止盈价格`);percent.setAttribute('aria-label',`第${i+1}档平仓比例，百分比`);p.placeholder='价格';percent.placeholder='%';
  const ratioCell=document.createElement('td'),r=text('span','—'),net=text('td','—');r.className='ratio-number';
  const label=text('div','盈亏比'),help=text('button','?');label.className='ratio-label';help.type='button';help.className='help-toggle';help.setAttribute('aria-label',`第${i+1}档盈亏比说明`);help.setAttribute('aria-expanded','false');help.setAttribute('aria-controls','ratio-help');help.setAttribute('popovertarget','ratio-help');ratioHelpButtons.push(help);label.append(help);ratioCell.append(label,r);
- net.setAttribute('data-label','本档预计净收益');for(const input of [p,percent]){const td=document.createElement('td');td.setAttribute('data-label',input===p?`第${i+1}档 · 止盈价格`:'平仓原始仓位');td.append(input);if(input===percent)td.append(text('span','%'));tr.append(td);input.addEventListener('input',()=>{renderPlan();savePlan();});}tr.append(ratioCell,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
+ net.setAttribute('data-label','本档预计净收益');for(const input of [p,percent]){const td=document.createElement('td');td.setAttribute('data-label',input===p?`第${i+1}档 · 止盈价格`:'平仓原始仓位');td.append(input);if(input===percent)td.append(text('span','%'));tr.append(td);input.addEventListener('input',()=>{
+ if(input===percent){const total=rows.reduce((sum,row)=>sum+Number(row.percent.value),0);if(rows.every(row=>row.percent.value!==''&&Number(row.percent.value)>=0)&&Number.isFinite(total)&&total<=100+1e-8){$('retain-position').value=String(Math.max(0,Math.round((100-total)*100)/100));$('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');}}
+ renderPlan();savePlan();});}tr.append(ratioCell,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
 }
-function savePlan(){try{localStorage.setItem('profit-plan-week-v1',JSON.stringify({rows:rows.map(x=>({price:x.p.value,percent:x.percent.value})),symbol:$('stock-symbol').value,date:$('analysis-date').value,style:$('plan-style').value,buffer:buffer()}));}catch(e){}}
-try{const saved=JSON.parse(localStorage.getItem('profit-plan-week-v1')||'null');if(saved){if([.1,.2,.3].includes(Number(saved.buffer)))$('stop-buffer').value=String(saved.buffer);$('stock-symbol').value=saved.symbol||'NVDA';if(saved.date&&saved.date<=ny)$('analysis-date').value=saved.date;$('plan-style').value='week';}}catch(e){}
+function savePlan(){try{localStorage.setItem('profit-plan-week-v1',JSON.stringify({rows:rows.map(x=>({price:x.p.value,percent:x.percent.value})),symbol:$('stock-symbol').value,date:$('analysis-date').value,style:$('plan-style').value,buffer:buffer(),retain:retention()}));}catch(e){}}
+try{const saved=JSON.parse(localStorage.getItem('profit-plan-week-v1')||'null');if(saved){if(saved.retain!==undefined&&Number.isFinite(Number(saved.retain)))$('retain-position').value=String(Math.min(100,Math.max(0,Number(saved.retain))));if([.1,.2,.3].includes(Number(saved.buffer)))$('stop-buffer').value=String(saved.buffer);$('stock-symbol').value=saved.symbol||'NVDA';if(saved.date&&saved.date<=ny)$('analysis-date').value=saved.date;$('plan-style').value='week';}}catch(e){}
 function current(){const s=window.PositionRisk.read();return {s,r:window.PositionRisk.calculate(s)};}
 function renderSnapshot(){
  const s=window.PositionRisk.read(),short=s.side==='short';
@@ -180,8 +183,9 @@ function adoptTargets(){
  if(key!==targetSignature){
   targetSignature=key;$('take-profit-rows').replaceChildren();ratioHelpButtons.length=0;
   rows=targets.map((z,i)=>{const row=createTargetRow(i);row.p.value=z.target.toFixed(2);
-   const cents=Math.floor(7000/targets.length)+(i<7000%targets.length?1:0);row.percent.value=String(cents/100);return row;});
+   const allocation=Math.round((100-retention())*100),cents=Math.floor(allocation/targets.length)+(i<allocation%targets.length?1:0);row.percent.value=String(cents/100);return row;});
  }
+ $('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');
  $('target-count').textContent=targets.length?`${targets.length}档候选 · 比例可调整`:'';
  renderPlan();savePlan();
 }
@@ -221,6 +225,12 @@ function applyBuffer(){
   if(defaults.stop===null)$('market-error').textContent='近期极值不在正确止损方向，请手动设置止损。';
  }catch(e){$('market-error').textContent=e.message;}
 }
+$('retain-position').addEventListener('input',()=>{
+ $('retain-value').textContent=retention()+'%';$('retain-position').setAttribute('aria-valuetext',retention()+'%');
+ const allocation=Math.round((100-retention())*100);
+ rows.forEach((row,i)=>{row.percent.value=String((Math.floor(allocation/rows.length)+(i<allocation%rows.length?1:0))/100);});
+ renderPlan();savePlan();
+});
 $('stop-buffer').addEventListener('change',()=>{savePlan();applyBuffer();});
 $('max-target-atr').addEventListener('change',renderAnalysis);
 $('analysis-date').addEventListener('change',()=>{savePlan();return loadStock();});
@@ -249,5 +259,6 @@ $('ratio-help').addEventListener('toggle',event=>{
 $('atr-help').addEventListener('toggle',event=>{
  $('atr-help-toggle').setAttribute('aria-expanded',String(event.newState==='open'));
 });
+$('retain-value').textContent=retention()+'%';
 renderPlan();
 })();

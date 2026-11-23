@@ -21,4 +21,4 @@ e.risk.value='';e.risk.listeners.input();assert.equal(e.output.hidden,false);ass
 
 assert.equal(e.cap.value,"100");store.set("position-calculator-default70-v6",JSON.stringify({cap:30}));e=boot(store);assert.equal(e.cap.value,"100","legacy percentage cannot override fixed 100% policy");
 
-assert.match(e["five-leverage"].children[0].textContent,/倍参考/);assert(e["five-leverage"].children[1].textContent.includes("保证金"));
+assert.match(e["five-leverage"].children[0].textContent,/5的倍数参考/);const fiveTable=e["five-leverage"].children[1];assert.equal(fiveTable.children[0].children[2].textContent,"保证金");const fiveLevels=fiveTable.children.slice(1).map(row=>parseInt(row.children[0].textContent));assert.deepEqual(fiveLevels,[20,15,10,5]);

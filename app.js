@@ -67,14 +67,16 @@ function update(save){
   if(r.margin!==null&&r.loss/r.margin>s.cap/100+1e-10)warnings.push('止损损失超过你设置的保证金损失比例上限。');
   if(r.selected!==null&&r.selected>s.platformMax)warnings.push('所选杠杆超过填写的平台上限。');
   el('warning').textContent=warnings.join(' ');
-  const roundedLeverage=r.selected===null?0:Math.floor(Math.min(r.selected,s.platformMax)/5)*5;
-  const roundedRow=roundedLeverage>=5?compareLeverages(s).find(row=>row.leverage===roundedLeverage):null;
+  const roundedRows=compareLeverages(s).filter(row=>row.leverage%5===0&&r.selected!==null&&row.leverage<=Math.min(r.selected,s.platformMax)&&row.checks.length===0);
   el('five-leverage').replaceChildren();
-  if(roundedRow){
-   const title=document.createElement('strong');title.textContent=fmt(roundedRow.leverage)+'倍参考 · 预计止损 '+fmt(roundedRow.loss)+' U';
-   const details=document.createElement('span');details.textContent='仓位 '+fmt(roundedRow.notional)+' U · 保证金 '+fmt(roundedRow.margin)+' U';
-   el('five-leverage').append(title,details);
-  }else el('five-leverage').textContent='当前上限不足5倍，暂无符合预算的5倍整数档。';
+  if(roundedRows.length){
+   const title=document.createElement('strong');title.textContent='5的倍数参考 · 金额 U';el('five-leverage').append(title);
+   const table=document.createElement('table'),head=document.createElement('tr');
+   for(const label of ['杠杆','仓位','保证金','止损亏损']){const th=document.createElement('th');th.textContent=label;head.append(th);}table.append(head);
+   for(const row of [...roundedRows].reverse()){
+    const tr=document.createElement('tr');for(const value of [fmt(row.leverage)+'倍',fmt(row.notional),fmt(row.margin),fmt(row.loss)]){const td=document.createElement('td');td.textContent=value;tr.append(td);}table.append(tr);
+   }el('five-leverage').append(table);
+  }else el('five-leverage').textContent='当前预算内暂无符合条件的5倍整数档。';
 
   el('simple-note').textContent=r.reference===null?'无法给出逐仓参考杠杆；下方高级设置可查看约束。':'按止损损失占保证金 '+fmt(s.cap)+'%计算，理论杠杆上限为 '+fmt(r.maxLeverage)+'倍；向下取整数并限制在填写的平台上限内，得到 '+fmt(r.reference)+'倍。这是预算上限，不是安全杠杆建议。';
   el('reference-status').textContent='仅为预算上限，未核验强平。'+(r.margin===null?'':' 止损损失约占本笔保证金 '+pct(r.loss/r.margin)+'。');

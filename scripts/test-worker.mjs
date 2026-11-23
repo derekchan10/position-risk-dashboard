@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import worker,{normalize,validScope} from '../worker/index.mjs';
+import worker,{normalize,validScope,apiFailure} from '../worker/index.mjs';
 const data=new Map();const env={TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64url'),SESSIONS:{get:async k=>data.get(k),put:async(k,v)=>data.set(k,v),delete:async k=>data.delete(k)},ASSETS:{fetch:async()=>new Response('static')}};
 const origin='https://cw-test.workers.dev';const req=(path,method='GET',headers={})=>new Request(origin+path,{method,headers});
 let r=await worker.fetch(req('/api/futu/bars?symbol=NVDA&date=2026-11-20'),env);assert.equal(r.status,401);
@@ -18,6 +18,16 @@ r=await worker.fetch(req('/auth/callback?state='+state+'&code=test','GET',{Cooki
 assert.ok([...data.values()].every(v=>!v.includes('not-a-real-token')),'tokens encrypted at rest');
 r=await worker.fetch(req('/auth/status','GET',{Cookie:sessionCookie}),env);assert.equal((await r.json()).connected,true);
 r=await worker.fetch(req('/auth/status'),env);assert.equal((await r.json()).connected,false,'visitor cannot use another session');
+let attempts=0,refreshes=0;
+globalThis.fetch=async(url,opts)=>{
+ if(url.endsWith('/token')){refreshes++;return Response.json({access_token:'renewed-test',scope:'quote:read',expires_in:7200});}
+ if(url.includes('/history-kline')){attempts++;if(attempts===1)return Response.json({ret_code:-12102,error:{code:'token_expired'}},{status:401});assert.equal(opts.headers.Authorization,'Bearer renewed-test');return Response.json({ret_code:0,data:{kline_list:[{date:20261119,open:130,high:135,low:128,close:133}]}});}
+ throw Error('unexpected path');
+};
+r=await worker.fetch(req('/api/futu/bars?symbol=NVDA&date=2026-11-20','GET',{Cookie:sessionCookie}),env);assert.equal(r.status,200);assert.equal(attempts,2);assert.equal(refreshes,1);
+assert.match(apiFailure(200,{ret_code:-12,error:{code:'history_quota_exceeded'}}).message,/额度已用完/);
+assert.match(apiFailure(200,{ret_code:-9,error:{code:'permission_denied'}}).message,/行情权限/);
+assert.equal(apiFailure(401,{ret_code:-12102}).authExpired,true);
 r=await worker.fetch(req('/auth/disconnect','POST',{Cookie:sessionCookie,Origin:origin}),env);assert.equal(r.status,200);
 r=await worker.fetch(req('/auth/status','GET',{Cookie:sessionCookie}),env);assert.equal((await r.json()).connected,false);
 for(const scope of ['','quote:read trade:read','quote:read trade:write','quote:read quote:write'])assert.throws(()=>validScope({scope}));

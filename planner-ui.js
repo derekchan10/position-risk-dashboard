@@ -93,7 +93,7 @@ function renderAnalysis(){
    ['止损距离',`${price(risk)} 美元`],
    [dir===1?'距近10日低点':'距近10日高点',`${price(Math.abs(s.entry-base))} 美元`],
    [dir===1?'最近压力区':'最近支撑区',near?`${price(near.low)}${near.high>near.low?' ～ '+price(near.high):''}`:'暂无已确认水平区'],
-   ['水平区依据',near?near.labels.slice(0,2).join('；'):'数据不足'],
+   [dir===1?'压力来源':'支撑来源',near?near.labels.slice(0,2).join('；'):'数据不足'],
    ['最近水平区盈亏比',near?`${f(near.r)}R / 要求 ≥ 1.5R`:'无法计算'],
    ['盈亏比1.5R所需价格',price(s.entry+dir*1.5*risk)]
   ];

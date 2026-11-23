@@ -11,3 +11,9 @@ assert.throws(()=>P.trailing('long',130,124,3,125,124,2));
 assert.throws(()=>P.trailing('long',130,124,3,140,145,2));
 const poisoned={...data,bars:[...data.bars,{date:'2099-01-01',open:1,high:99999,low:1,close:9999}]};assert.deepEqual(P.analyze(poisoned,'2026-11-23',130,124,'long'),a);
 console.log('PASS: horizontal-only targets, no padding, ATR limit, long/short trailing monotonicity, cutoff');
+
+assert(a.zones.length>0);assert(a.zones.every(z=>z.labels.every(l=>l.startsWith('潜在压力 · '))));
+const short=P.analyze(data,'2026-11-23',220,230,'short');assert(short.zones.length>0);assert(short.zones.every(z=>z.labels.every(l=>l.startsWith('潜在支撑 · '))));
+assert(a.zones.some(z=>z.labels.some(l=>l.includes('历史局部低点'))));
+assert(![...a.zones,...short.zones].some(z=>z.labels.some(l=>/已确认前低|已确认前高|转压力|转支撑/.test(l))));
+console.log('PASS: directional pressure/support wording preserves historical sources without asserting role reversal');

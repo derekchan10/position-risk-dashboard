@@ -19,14 +19,15 @@ function analyze(data,date,entry,stop,side){
  if(!valid)throw Error('行情包含无效价格。');
  const last=bars.at(-1),risk=Math.abs(entry-stop),mas=[20,50,100,200].map(n=>({n,value:bars.length>=n?bars.slice(-n).reduce((a,b)=>a+b.close,0)/n:null}));
  const atr=wilderATR(bars);
- const raw=[];const add=(p,label)=>{if(dir*(p-entry)>0)raw.push({price:p,label});};
+ const role=dir===1?'潜在压力':'潜在支撑';
+ const raw=[];const add=(p,source)=>{if(dir*(p-entry)>0)raw.push({price:p,label:role+' · '+source});};
  // Moving averages are auxiliary only; never enter horizontal target clustering.
  add(last.high,'前一交易日高点 '+last.date);add(last.low,'前一交易日低点 '+last.date);
  const start=Math.max(2,bars.length-90);
  for(let i=start;i<bars.length-2;i++){
   const b=bars[i],around=[bars[i-2],bars[i-1],bars[i+1],bars[i+2]];
-  if(around.every(x=>b.high>=x.high)&&around.some(x=>b.high>x.high))add(b.high,'已确认前高 '+b.date);
-  if(around.every(x=>b.low<=x.low)&&around.some(x=>b.low<x.low))add(b.low,'已确认前低 '+b.date);
+  if(around.every(x=>b.high>=x.high)&&around.some(x=>b.high>x.high))add(b.high,'历史局部高点 '+b.date);
+  if(around.every(x=>b.low<=x.low)&&around.some(x=>b.low<x.low))add(b.low,'历史局部低点 '+b.date);
  }
  const distance=Math.max(entry*.003,Math.min(atr*.2,entry*.01));
  raw.sort((a,b)=>a.price-b.price);const zones=[];

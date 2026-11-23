@@ -28,7 +28,7 @@ const el=id=>document.getElementById(id),value=id=>id==='side'?document.querySel
 function read(){const s={};for(const id of ids){const v=value(id);s[id]=id==='side'?v:v===''?null:Number(v);}return s;}
 function update(save){
  try{
-  const s=read();el('stop-hint').textContent=s.side==='long'?'做多：跌到这个价格就退出':'做空：涨到这个价格就退出';const r=calculate(s);
+  const s=read();el('cap-value').textContent=s.cap+'%';el('cap').setAttribute('aria-valuetext',s.cap+'%');el('stop-hint').textContent=s.side==='long'?'做多：跌到这个价格就退出':'做空：涨到这个价格就退出';const r=calculate(s);
   if(s.liquidation!==null&&(!Number.isFinite(s.liquidation)||s.liquidation<=0))throw Error('预估强平价必须大于0。');
   el('error').textContent='';el('output').hidden=false;
   el('notional').textContent=fmt(r.notional)+' U';el('margin-label').textContent=(r.selected===null?'所需保证金':fmt(r.selected)+'倍对应的逐仓保证金');el('margin').textContent=r.margin===null?'无法匹配':fmt(r.margin)+' U';el('leverage-value').textContent=r.selected===null?'无可用倍数':fmt(r.selected)+'倍';el('leverage-caption').textContent='逐仓杠杆预算上限';

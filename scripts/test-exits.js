@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),P=require('../planner.js');
-const data=require('../data/NVDA.json');const a=P.analyze(data,'2026-11-23',130,124,'long');
+const data=require('../tests/fixtures/nvda-history.json');const a=P.analyze(data,'2026-11-23',130,124,'long');
 assert(a.zones.every(z=>z.labels.every(l=>!l.startsWith('MA'))));
 assert(a.targets.every(z=>z.r>=1&&z.atrDistance<=4));
 const flat={bars:Array.from({length:220},(_,i)=>({date:new Date(Date.UTC(2025,0,1+i)).toISOString().slice(0,10),open:100,high:101,low:99,close:100}))};

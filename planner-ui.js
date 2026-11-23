@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id),f=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:2});
-let market=null,analysis=null,known=[],signature='',busy=false,listReady=Promise.resolve(),cloudBackend=false;
+let market=null,analysis=null,signature='',busy=false,cloudBackend=false,backendReady=Promise.resolve();
 const now=new Date(),ny=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 $('analysis-date').value=ny;$('analysis-date').max=ny;
 function text(tag,t){const e=document.createElement(tag);e.textContent=t;return e;}
@@ -49,17 +49,12 @@ function renderAnalysis(){
 async function loadStock(){
  if(busy)return;busy=true;$('analyze-stock').disabled=true;$('market-error').textContent='';$('market-status').textContent='正在读取日线…';market=null;analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;
  try{
-  await listReady;
+  await backendReady;
   const symbol=$('stock-symbol').value.trim().toUpperCase();if(!/^[A-Z0-9.^=-]{1,16}$/.test(symbol))throw Error('请输入有效股票代码。');$('stock-symbol').value=symbol;
-  const requestedSource=$('market-source').value,requestedDate=$('analysis-date').value;
-  if($('market-source').value==='futu'){
-   if(!cloudBackend&&location.origin!=='http://localhost:8768')throw Error('富途需要本机授权服务。请在电脑运行 scripts/futu_bridge.py，再打开 http://localhost:8768。');
+  const requestedDate=$('analysis-date').value;
+   if(!cloudBackend&&location.origin!=='http://localhost:8768')throw Error('请通过“打开富途线上看板”链接进入授权行情入口。');
    const response=await fetch('/api/futu/bars?'+new URLSearchParams({symbol,date:$('analysis-date').value}));const j=await response.json();if(!response.ok)throw Error(j.error||'富途行情读取失败');market=j;
-  }else{
-   if(!known.includes(symbol))throw Error('该代码尚无免费缓存，请切换到富途行情并授权。当前缓存支持：'+known.join('、'));
-   const response=await fetch('data/'+encodeURIComponent(symbol)+'.json',{cache:'no-store'});if(!response.ok)throw Error('行情读取失败，请稍后重试。');market=await response.json();
-  }
-  if($('stock-symbol').value.trim().toUpperCase()!==symbol||$('market-source').value!==requestedSource||$('analysis-date').value!==requestedDate){market=null;throw Error('代码、来源或日期已改变，请重新分析。');}
+  if($('stock-symbol').value.trim().toUpperCase()!==symbol||$('analysis-date').value!==requestedDate){market=null;throw Error('代码、来源或日期已改变，请重新分析。');}
   renderAnalysis();savePlan();
  }catch(e){$('market-error').textContent=e.message;$('market-status').textContent='未生成新建议；不会用旧结果替代。';}
  finally{busy=false;$('analyze-stock').disabled=false;}
@@ -71,18 +66,18 @@ async function futuStatus(autoSelect=false){
  const local=location.origin==='http://localhost:8768'||location.hostname.endsWith('.workers.dev');
  $('futu-connect').hidden=!local;$('futu-disconnect').hidden=true;
  if(!local){$('futu-status').replaceChildren(text('span','富途线上版已启用。请在 HTTPS 入口连接授权：'));const link=document.createElement('a');link.href='https://cw-futu-backend.dchan0831.workers.dev';link.textContent='打开富途线上看板';link.target='_blank';link.rel='noopener noreferrer';$('futu-status').append(link);return;}
- try{const r=await fetch('/auth/status'),j=await r.json();cloudBackend=j.cloud===true;$('futu-status').textContent=j.connected?(cloudBackend?'已连接富途云端 · 只读行情':'已连接富途 · 只读行情'):'尚未连接，点击下方按钮前往富途官方页面授权。';$('futu-connect').hidden=j.connected;$('futu-disconnect').hidden=!j.connected;if(j.connected&&(autoSelect||$('market-source').value==='futu')){$('market-source').value='futu';$('futu-panel').hidden=false;}}catch(e){$('futu-status').textContent='本机授权服务暂不可用。';}
+ try{const r=await fetch('/auth/status'),j=await r.json();cloudBackend=j.cloud===true;$('futu-status').textContent=j.connected?(cloudBackend?'已连接富途云端 · 只读行情':'已连接富途 · 只读行情'):'尚未连接，点击下方按钮前往富途官方页面授权。';$('futu-connect').hidden=j.connected;$('futu-disconnect').hidden=!j.connected;$('futu-panel').hidden=false;}catch(e){$('futu-status').textContent='本机授权服务暂不可用。';}
 }
-$('market-source').addEventListener('change',()=>{market=null;analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;$('futu-panel').hidden=$('market-source').value!=='futu';futuStatus();});
+
 $('futu-connect').addEventListener('click',async()=>{try{$('futu-connect').disabled=true;const r=await fetch('/auth/start',{method:'POST'}),j=await r.json();if(!r.ok)throw Error(j.error);const url=new URL(j.url);if(url.origin!=='https://webapi.futunn.com')throw Error('授权地址无效');location.assign(url.href);}catch(e){$('futu-status').textContent=e.message;$('futu-connect').disabled=false;}});
 $('futu-disconnect').addEventListener('click',async()=>{const r=await fetch('/auth/disconnect',{method:'POST'});if(r.ok){market=null;analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;await futuStatus();}});
-futuStatus(true);
+backendReady=futuStatus(true);
 $('analyze-stock').addEventListener('click',loadStock);
 $('stock-symbol').addEventListener('input',()=>{market=null;analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;$('market-status').textContent='代码已更改，请点击分析。';});
 $('max-target-atr').addEventListener('change',renderAnalysis);
 $('analysis-date').addEventListener('change',()=>{renderAnalysis();savePlan();});
 window.addEventListener('trade-input-change',()=>{renderPlan();renderAnalysis();});
 
-listReady=fetch('data/symbols.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error();return r.json();}).then(list=>{known=list;$('stock-list').replaceChildren(...list.map(s=>{const o=document.createElement('option');o.value=s;return o;}));}).catch(()=>{$('market-status').textContent='股票缓存列表暂不可用，请稍后重试或使用富途行情。';});
+
 renderPlan();
 })();

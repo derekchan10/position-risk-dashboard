@@ -34,9 +34,9 @@
 </div>
 <section id="planner-view"><div class="planner-grid">
 <section class="panel market-panel"><h2>止盈参考</h2><p class="explain">输入股票，按开仓前的水平压力／支撑区分析。</p>
-<div class="inputs planner-controls"><label>股票代码<input id="stock-symbol" list="stock-list" value="NVDA" autocomplete="off" maxlength="16"><datalist id="stock-list"></datalist></label><label>开仓日期（美股交易日）<input id="analysis-date" type="date"></label></div>
+<div class="inputs planner-controls"><label>股票代码<input id="stock-symbol" value="NVDA" autocomplete="off" maxlength="16"></label><label>开仓日期（美股交易日）<input id="analysis-date" type="date"></label></div>
 <details class="data-settings"><summary>行情与筛选设置</summary><p class="explain">以水平压力／支撑区为主，只用开仓日期之前的已完成日线。</p><label>候选目标最远距离<select id="max-target-atr"><option value="2">2 ATR · 较近</option><option value="4" selected>4 ATR · 默认</option><option value="6">6 ATR · 较远</option></select></label><p class="explain">最近水平区P1须至少1.5R；不足则提示放弃，不跳过它去找远处目标。只取距离筛选内的P1/P2，不凑档。阈值是筛选条件，不代表可达概率。</p>
-<label>行情来源<select id="market-source"><option value="cache">免费日线缓存</option><option value="futu">富途（授权行情）</option></select></label><div id="futu-panel" hidden><p id="futu-status" class="explain"></p><button type="button" id="futu-connect">连接富途 · 只读行情</button> <button type="button" id="futu-disconnect" hidden>断开连接</button><p class="explain">线上入口的凭证在后台加密保存；本机入口只保留在服务内存。仅读取美股日线，不读取账户或下单。</p></div>
+<div id="futu-panel"><p id="futu-status" class="explain"></p><button type="button" id="futu-connect">连接富途 · 只读行情</button> <button type="button" id="futu-disconnect" hidden>断开连接</button><p class="explain">线上入口的凭证在后台加密保存；本机入口只保留在服务内存。仅读取美股日线，不读取账户或下单。</p></div>
 </details><button type="button" class="primary-action" id="analyze-stock">分析止盈位</button>
 <p id="market-status" class="explain" role="status"></p><div id="market-error" class="notice" role="alert"></div>
 <div id="market-results" hidden><p class="explain" id="atr-value"></p><div id="target-candidates"></div><details><summary>全部水平区依据（含筛选外价位）</summary><div id="zones-list"></div></details><details><summary>均线辅助信息 · 不用于补足止盈档位</summary><div id="ma-values" class="ma-grid"></div></details><p class="explain" id="market-meta"></p></div>
@@ -57,4 +57,4 @@
 <details class="settings-group"><summary>查看各倍杠杆对比</summary><div class="table-wrap"><table><thead><tr><th>杠杆</th><th>保证金</th><th>止损损失比例</th><th>检查</th></tr></thead><tbody id="rows"></tbody></table></div></details>
 <p class="explain">适用于线性U本位合约及等效股票仓位，不适用于期权或反向合约。合约张数按平台规格换算；输入仅保存在本浏览器。</p></div></dialog>
 
-</main><script src="app.js?v=planner-v12"></script><script src="planner.js?v=week-1"></script><script src="planner-ui.js?v=core-2"></script></body></html>
+</main><script src="app.js?v=planner-v12"></script><script src="planner.js?v=week-1"></script><script src="planner-ui.js?v=futu-only-1"></script></body></html>

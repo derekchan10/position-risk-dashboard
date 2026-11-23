@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),{analyze,profits}=require('../planner.js'),position=require('../app.js');
-const data=require('../data/NVDA.json');
+const data=require('../tests/fixtures/nvda-history.json');
 const s={risk:500,entry:130,stop:124,side:'long',cap:70,feeIn:.05,feeOut:.05,slip:0,reserve:0,step:0,platformMax:20};
 const r=position(s),a=analyze(data,'2026-11-20',130,124,'long');
 assert.ok(a.lastDate<'2026-11-20');assert.ok(a.mas.every(m=>m.value===null||Number.isFinite(m.value)));

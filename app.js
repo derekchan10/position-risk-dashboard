@@ -40,7 +40,7 @@ function update(save){
   el('warning').textContent=warnings.join(' ');
   el('simple-note').textContent=r.reference===null?'无法给出逐仓参考杠杆；下方高级设置可查看约束。':'按止损时最多损失保证金 '+fmt(s.cap)+'%计算，理论杠杆上限为 '+fmt(r.maxLeverage)+'倍；向下取整数并限制在填写的平台上限内，得到 '+fmt(r.reference)+'倍。这是预算上限，不是安全杠杆建议。';
   el('reference-status').textContent='仅为预算上限，未核验强平。'+(r.margin===null?'':' 止损损失约占本笔保证金 '+pct(r.loss/r.margin)+'。');
-  el('advanced-note').textContent='等效数量 '+fmt(r.quantity)+'；止损距离 '+pct(Math.abs(s.entry-s.stop)/s.entry)+'；假设止损成交价 '+fmt(r.exit)+'。账户本金不参与计算。按填写的损失比例，理论最低保证金 '+fmt(r.loss/(s.cap/100))+' U，理论杠杆上限 '+fmt(r.maxLeverage)+'倍；平台是否支持及强平位置需另行核实。';
+  el('advanced-note').textContent='等效数量 '+fmt(r.quantity)+'；止损距离 '+pct(Math.abs(s.entry-s.stop)/s.entry)+'；假设止损成交价 '+r.exit.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})+'。账户本金不参与计算。按填写的损失比例，理论最低保证金 '+fmt(r.loss/(s.cap/100))+' U，理论杠杆上限 '+fmt(r.maxLeverage)+'倍；平台是否支持及强平位置需另行核实。';
   el('rows').replaceChildren(...[...new Set([1,2,3,5,10,15,20,r.reference].filter(x=>x!==null))].sort((a,b)=>a-b).map(l=>{
    const tr=document.createElement('tr'),m=r.notional/l,checks=[];if(l>s.platformMax)checks.push('超过平台上限');
    if(r.loss/m>s.cap/100)checks.push('超过损失比例上限');

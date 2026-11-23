@@ -61,8 +61,8 @@ main{max-width:none;width:100%;padding:20px 24px}.workspace{grid-template-column
 <section class="panel" aria-labelledby="input-heading"><div class="section-heading"><h2 id="input-heading">交易参数</h2><span>逐仓 · 富途行情</span></div><div id="futu-panel"><p id="futu-status" class="explain"></p><button type="button" id="futu-connect" class="primary-action">先授权富途行情</button> <button type="button" id="futu-disconnect" hidden>断开连接</button><p class="explain">线上入口的凭证在后台加密保存；本机入口只保留在服务内存。仅读取美股日线，不读取账户或下单。</p></div><fieldset class="direction"><legend>交易方向</legend><div class="direction-options"><label><input type="radio" name="side" value="long" checked> 做多</label><label><input type="radio" name="side" value="short"> 做空</label></div></fieldset><div class="inputs"><label>股票代码<input id="stock-symbol" value="NVDA" autocomplete="off" maxlength="16" placeholder="例如 NVDA"></label>
 <label>单笔亏损预算（U）<input id="risk" type="number" min="0" step="any" value="500"></label>
 
-<label>开仓价<input id="entry" type="number" min="0" step="any" value="130"></label>
-<label>止损价<input id="stop" type="number" min="0" step="any" value="124"></label>
+<label>开仓价<input id="entry" type="number" min="0" step="any" value="130.00"></label>
+<label>止损价<input id="stop" type="number" min="0" step="any" value="124.00"></label>
 </div><p id="stop-hint" class="explain input-hint">做多：止损价低于开仓价</p><div id="trade-snapshot" class="trade-snapshot" aria-live="polite">
 <div class="snapshot-row"><span>当前价格 · 常规时段</span><strong id="snapshot-price">—</strong></div>
 <p id="snapshot-time">等待行情授权</p>

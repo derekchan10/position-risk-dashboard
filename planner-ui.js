@@ -2,12 +2,14 @@
 'use strict';
 const $=id=>document.getElementById(id),f=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:2});
 let market=null,analysis=null,signature='',busy=false,cloudBackend=false,backendReady=Promise.resolve(),requestVersion=0,controller=null,autoTimer=null,priceBinding=null,authorized=null;
+const price=n=>Number(n).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const now=new Date(),ny=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 $('analysis-date').value=ny;$('analysis-date').max=ny;
 function text(tag,t){const e=document.createElement(tag);e.textContent=t;return e;}
 const rows=[0,1].map((_,i)=>{
  const tr=document.createElement('tr'),p=document.createElement('input'),percent=document.createElement('input');
- p.type=percent.type='number';percent.readOnly=true;p.min='0';p.step='any';percent.min='0';percent.max='100';percent.step='any';
+ p.type=percent.type='number';
+ p.addEventListener('blur',()=>{if(p.value!==''&&Number.isFinite(Number(p.value)))p.value=Number(p.value).toFixed(2);savePlan();});percent.readOnly=true;p.min='0';p.step='any';percent.min='0';percent.max='100';percent.step='any';
  p.setAttribute('aria-label',`第${i+1}档止盈价格`);percent.setAttribute('aria-label',`第${i+1}档卖出比例，百分比`);p.placeholder='价格';percent.placeholder='%';
  const r=text('td','—'),net=text('td','—');for(const input of [p,percent]){const td=document.createElement('td');td.append(input);tr.append(td);input.addEventListener('input',()=>{if(input===p)percent.value=p.value?([40,30][i]):'';renderPlan();savePlan();});}tr.append(r,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
 });
@@ -24,14 +26,14 @@ function renderSnapshot(){
  if(market){
   const quote=market.quote;
   if(quote&&Number.isFinite(Number(quote.price))&&Number(quote.price)>0){
-   $('snapshot-price').textContent=f(Number(quote.price))+' USD';
+   $('snapshot-price').textContent=price(Number(quote.price))+' USD';
    const time=quote.time?new Date(quote.time):null;
    $('snapshot-time').textContent=time&&!Number.isNaN(time.getTime())?'报价：'+time.toLocaleString('zh-CN',{timeZone:'America/New_York',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})+' 美东':quote.date?'报价日期：'+quote.date+'（美东），具体时间未提供':'报价时间未提供';
   }else $('snapshot-time').textContent='本次未提供当前报价';
   const bars=market.bars.filter(b=>b.date<$('analysis-date').value).sort((a,b)=>a.date.localeCompare(b.date));
   if(bars.length){
    const extreme=bars.slice(-10).reduce((a,b)=>short?(b.high>=a.high?b:a):(b.low<=a.low?b:a));
-   $('snapshot-extreme').textContent=f(short?extreme.high:extreme.low)+' · '+extreme.date;
+   $('snapshot-extreme').textContent=price(short?extreme.high:extreme.low)+' · '+extreme.date;
    if(valid&&bars.length>=14){const atr=TradePlanner.wilderATR(bars);if(atr>0)distance+=' / '+f(Math.abs(s.entry-s.stop)/atr)+' ATR';}
   }
  }
@@ -50,7 +52,7 @@ function renderPlan(){
  $('plan-error').textContent='';$('plan-summary').replaceChildren();rows.forEach(x=>{x.r.textContent='—';x.net.textContent='—';});
  if(authorized===false){authorizationHint();$('plan-summary').append(text('p','请先授权富途行情，系统将自动生成止盈建议。'));return;}
  try{
-  const {s,r}=current();$('plan-trade-context').textContent=`${s.side==='long'?'做多':'做空'} ${f(s.entry)} / 止损 ${f(s.stop)}`;
+  const {s,r}=current();$('plan-trade-context').textContent=`${s.side==='long'?'做多':'做空'} ${price(s.entry)} / 止损 ${price(s.stop)}`;
   const raw=rows.map(x=>({price:x.p.value,percent:x.percent.value})),active=raw.filter(x=>x.price!==''||x.percent!=='');
   if(!active.length){$('plan-summary').append(text('p',analysis?'当前不生成止盈计划，等待更合适的入场位置。':'填写参数后自动分析。'));return;}
   const result=TradePlanner.profits(s,r,raw);let n=0;
@@ -67,9 +69,9 @@ function renderAnalysis(){
   const maxATR=Number($('max-target-atr').value),week=TradePlanner.weekTargets(analysis,maxATR);analysis.targets=week.targets;analysis.weekReason=week.reason;
   signature=JSON.stringify([s.entry,s.stop,s.side,$('analysis-date').value]);
   $('market-results').hidden=false;
-  $('zones-list').replaceChildren(...analysis.zones.slice(0,12).map(z=>{const div=document.createElement('div');div.className='zone-row';div.append(text('div',`${f(z.low)}${z.high>z.low?'～'+f(z.high):''} · ${f(z.r)}:1 · ${f(z.atrDistance)} ATR`),text('small',z.labels.join('；')));return div;}));
-  $('atr-value').textContent=`日线 ATR(14，Wilder) ${f(analysis.atr)} 美元／股 · 截至 ${analysis.lastDate}，前复权、仅完整交易日。`;
-  $('target-candidates').replaceChildren(...(analysis.targets.length?analysis.targets.map((z,i)=>{const div=document.createElement('div');div.className='zone-row';div.append(text('strong',`候选${i+1}：${f(z.target)} · 盈亏比 ${f(z.r)}:1 · ${f(z.atrDistance)} ATR`),text('small',z.labels.join('；')));return div;}):[text('p','暂无符合条件的水平候选。可以查看全部水平区。')]));
+  $('zones-list').replaceChildren(...analysis.zones.slice(0,12).map(z=>{const div=document.createElement('div');div.className='zone-row';div.append(text('div',`${price(z.low)}${z.high>z.low?'～'+price(z.high):''} · ${f(z.r)}:1 · ${f(z.atrDistance)} ATR`),text('small',z.labels.join('；')));return div;}));
+  $('atr-value').textContent=`日线 ATR(14，Wilder) ${price(analysis.atr)} 美元／股 · 截至 ${analysis.lastDate}，前复权、仅完整交易日。`;
+  $('target-candidates').replaceChildren(...(analysis.targets.length?analysis.targets.map((z,i)=>{const div=document.createElement('div');div.className='zone-row';div.append(text('strong',`候选${i+1}：${price(z.target)} · 盈亏比 ${f(z.r)}:1 · ${f(z.atrDistance)} ATR`),text('small',z.labels.join('；')));return div;}):[text('p','暂无符合条件的水平候选。可以查看全部水平区。')]));
   adoptTargets();
   $('market-meta').replaceChildren(text('span',`数据：${market.symbol} / ${market.currency}；最后采用 ${analysis.lastDate}，${analysis.count}根日线。获取时间 ${market.fetchedAt||'未提供'}。${market.quote?' 报价时间：'+(market.quote.time?new Date(market.quote.time).toISOString():market.quote.date||'未提供')+'；'+market.quote.session:''}`));
   if(market.sourceUrl){const a=document.createElement('a');a.textContent=' 查看行情来源';a.href=market.sourceUrl.startsWith('https://')?market.sourceUrl:'https://finance.yahoo.com/';a.target='_blank';a.rel='noopener noreferrer';$('market-meta').append(a);}
@@ -83,12 +85,12 @@ function renderAnalysis(){
   $('market-status').parentElement?.setAttribute('data-state',eligible?'ready':'wait');
   $('market-error').textContent=eligible?`最近${level}位提供 ${f(near.r)}R 空间，达到 ≥1.5R 门槛；可按右侧计划分批止盈，仍需自行确认入场信号。`:!near?`当前价前方没有已确认的水平${level}区，暂不生成开仓计划。`:near.r<1.5?`到最近${level}位仅有 ${f(near.r)}R，低于 1.5R 门槛。等待更合适的位置，不跳过近处${level}寻找远目标。`:`最近${level}位距开仓价 ${f(near.atrDistance)} ATR，超过 ${f(maxATR)} ATR 筛选上限，暂不纳入一周交易计划。`;
   const evidence=[
-   ['止损距离',`${f(risk)} 美元 · ${f(risk/analysis.atr)} ATR`],
-   [dir===1?'距近10日低点':'距近10日高点',`${f(Math.abs(s.entry-base))} 美元 · ${f(Math.abs(s.entry-base)/analysis.atr)} ATR`],
-   [dir===1?'最近压力区':'最近支撑区',near?`${f(near.low)}${near.high>near.low?' ～ '+f(near.high):''}`:'暂无已确认水平区'],
+   ['止损距离',`${price(risk)} 美元 · ${f(risk/analysis.atr)} ATR`],
+   [dir===1?'距近10日低点':'距近10日高点',`${price(Math.abs(s.entry-base))} 美元 · ${f(Math.abs(s.entry-base)/analysis.atr)} ATR`],
+   [dir===1?'最近压力区':'最近支撑区',near?`${price(near.low)}${near.high>near.low?' ～ '+price(near.high):''}`:'暂无已确认水平区'],
    ['水平区依据',near?near.labels.slice(0,2).join('；'):'数据不足'],
    ['最近水平区盈亏比',near?`${f(near.r)}R / 要求 ≥ 1.5R`:'无法计算'],
-   ['1.5R所需价格',f(s.entry+dir*1.5*risk)]
+   ['1.5R所需价格',price(s.entry+dir*1.5*risk)]
   ];
   $('decision-evidence').replaceChildren(...evidence.map(([label,value])=>{const row=text('div','');row.className='evidence-row';row.append(text('span',label),text('strong',value));return row;}));
   $('target-table').hidden=!eligible;$('profit-note').hidden=!eligible;
@@ -118,9 +120,9 @@ async function loadStock(options={}){
   if($('stock-symbol').value.trim().toUpperCase()!==symbol||$('analysis-date').value!==requestedDate||window.PositionRisk.read().side!==sideBefore)throw Error('股票、方向或日期已改变，请重新生成。');
   if(autoPrices){
    if($('entry').value!==entryBefore||$('stop').value!==stopBefore)throw Error('你已手动修改价格，本次自动填价已取消，请重新生成。');
-   const defaults=TradePlanner.priceDefaults(j,sideBefore);$('entry').value=defaults.entry;$('stop').value=defaults.stop??'';priceBinding=symbol;
+   const defaults=TradePlanner.priceDefaults(j,sideBefore);$('entry').value=Number(defaults.entry).toFixed(2);$('stop').value=defaults.stop===null?'':Number(defaults.stop).toFixed(2);priceBinding=symbol;
    const qt=j.quote?.time?new Date(j.quote.time).toLocaleString('zh-CN',{timeZone:'America/New_York'})+' 美东':j.quote?.date||'时间未提供';
-   $('auto-price-note').textContent=`止损参考：近10日${sideBefore==='short'?'高点＋':'低点－'}0.1 ATR，可手动调整。`;$('auto-price-note').title=`报价时间 ${qt}；近期极值 ${f(defaults.base)}；区间 ${defaults.from} 至 ${defaults.to}`;
+   $('auto-price-note').textContent=`止损参考：近10日${sideBefore==='short'?'高点＋':'低点－'}0.1 ATR，可手动调整。`;$('auto-price-note').title=`报价时间 ${qt}；近期极值 ${price(defaults.base)}；区间 ${defaults.from} 至 ${defaults.to}`;
    refreshSizing();
    if(defaults.stop===null)throw Error('近期极值不在正确止损方向，请根据结构手动填写止损；不会沿用旧股票价格。');
   }
@@ -149,7 +151,12 @@ $('stock-symbol').addEventListener('input',()=>{
  if(/^[A-Z][A-Z0-9.-]{0,14}$/.test($('stock-symbol').value.trim().toUpperCase()))autoTimer=setTimeout(()=>loadStock({autoPrices:true}),900);
 });
 $('stock-symbol').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(autoTimer);loadStock({autoPrices:true});}});
-for(const id of ['entry','stop'])$(id).addEventListener('input',()=>{priceBinding=$('stock-symbol').value.trim().toUpperCase();});
+for(const id of ['entry','stop','liquidation']){
+ const field=$(id);
+ const format=()=>{if(field.value!==''&&Number.isFinite(Number(field.value)))field.value=Number(field.value).toFixed(2);};
+ format();field.addEventListener('blur',format);
+ if(id!=='liquidation')field.addEventListener('input',()=>{priceBinding=$('stock-symbol').value.trim().toUpperCase();});
+}
 
 $('max-target-atr').addEventListener('change',renderAnalysis);
 $('analysis-date').addEventListener('change',()=>{savePlan();return loadStock();});

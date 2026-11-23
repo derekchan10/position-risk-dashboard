@@ -19,7 +19,7 @@ function current(){const s=window.PositionRisk.read();return {s,r:window.Positio
 function renderSnapshot(){
  const s=window.PositionRisk.read(),short=s.side==='short';
  $('snapshot-extreme-label').textContent=short?'近10日高点':'近10日低点';
- $('snapshot-price').textContent='—';$('snapshot-extreme').textContent='—';$('atr-value').textContent='日线 ATR(14)：等待行情';
+ $('snapshot-price').textContent='—';$('snapshot-extreme').textContent='—';$('atr-value').textContent='等待行情';
  $('snapshot-time').textContent=authorized===false?'请先授权富途行情':'等待股票行情';
  const valid=Number.isFinite(s.entry)&&s.entry>0&&Number.isFinite(s.stop)&&s.stop>0;
  let distance=valid?f(Math.abs(s.entry-s.stop)/s.entry*100)+'%':'—';
@@ -34,7 +34,7 @@ function renderSnapshot(){
   if(bars.length){
    const extreme=bars.slice(-10).reduce((a,b)=>short?(b.high>=a.high?b:a):(b.low<=a.low?b:a));
    $('snapshot-extreme').textContent=price(short?extreme.high:extreme.low)+' · '+extreme.date;
-   if(bars.length>=14){const atr=TradePlanner.wilderATR(bars);$('atr-value').textContent=`日线 ATR(14) ${price(atr)} USD · 截至 ${bars.at(-1).date} · Wilder`;if(valid&&atr>0)distance+=' / '+f(Math.abs(s.entry-s.stop)/atr)+' ATR';}
+   if(bars.length>=14){const atr=TradePlanner.wilderATR(bars);$('atr-value').textContent=`${price(atr)} 美元／股 · ${bars.at(-1).date}`;if(valid&&atr>0)distance+=' / '+f(Math.abs(s.entry-s.stop)/atr)+' ATR';}
   }
  }
  $('snapshot-distance').textContent=distance;
@@ -167,5 +167,9 @@ window.addEventListener('trade-input-change',()=>{
 });
 
 
+$('atr-help-toggle').addEventListener('click',()=>{
+ const expanded=$('atr-help-toggle').getAttribute('aria-expanded')==='true';
+ $('atr-help-toggle').setAttribute('aria-expanded',String(!expanded));$('atr-help').hidden=expanded;
+});
 renderPlan();
 })();

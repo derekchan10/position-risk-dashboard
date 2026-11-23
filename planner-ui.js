@@ -55,6 +55,7 @@ function authorizationHint(){
 }
 function renderPlan(){
  renderSnapshot();
+ if(market&&analysis)renderPriceChart(window.PositionRisk.read());
  $('plan-error').textContent='';$('plan-summary').replaceChildren();rows.forEach(x=>{x.r.textContent='—';x.net.textContent='—';});
  if(authorized===false){authorizationHint();$('plan-summary').append(text('p','授权行情后，自动匹配水平目标位。'));return;}
  try{
@@ -106,21 +107,41 @@ function renderAnalysis(){
  }catch(e){analysis=null;adoptTargets();$('market-results').hidden=true;$('target-table').hidden=true;$('profit-note').hidden=true;$('market-error').textContent=e.message;}
 }
 function renderPriceChart(s){
+ if(![s.entry,s.stop].every(v=>Number.isFinite(v)&&v>0)){$('price-chart').replaceChildren();return;}
  const bars=market.bars.filter(b=>b.date<$('analysis-date').value).sort((a,b)=>a.date.localeCompare(b.date)).slice(-90);
  if(bars.length<2){$('price-chart').replaceChildren();$('chart-legend').replaceChildren();return;}
- const zones=analysis.targets.length?analysis.targets:analysis.zones.slice(0,3),values=[...bars.map(b=>b.close),s.entry,s.stop,...zones.flatMap(z=>[z.low,z.high])];
- const low=Math.min(...values),high=Math.max(...values),pad=Math.max((high-low)*.1,.01),min=low-pad,max=high+pad;
- const y=value=>+(180-(value-min)/(max-min)*160).toFixed(2),x=i=>+(38+i/(bars.length-1)*342).toFixed(2);
- const safeDate=date=>/^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
- let svg='<svg viewBox="0 0 440 210" role="img" aria-label="近期收盘价、候选水平区、开仓价和止损价"><title>近期价格与候选水平区</title>';
- for(let i=0;i<4;i++){const value=min+(max-min)*i/3,yy=y(value);svg+=`<line x1="38" x2="380" y1="${yy}" y2="${yy}" stroke="currentColor" opacity=".1"/><text x="435" y="${yy+4}" text-anchor="end" font-size="10" fill="currentColor">${value.toFixed(2)}</text>`;}
- zones.forEach(z=>{const top=y(z.high),bottom=y(z.low);svg+=`<rect x="38" y="${top}" width="342" height="${Math.max(2,bottom-top)}" fill="#d69a32" opacity=".2"/><line x1="38" x2="380" y1="${y(z.target)}" y2="${y(z.target)}" stroke="#bd841b" stroke-dasharray="4 3"/>`;});
- svg+=`<polyline points="${bars.map((b,i)=>x(i)+','+y(b.close)).join(' ')}" fill="none" stroke="#448bc3" stroke-width="2"/>`;
- for(const [value,color] of [[s.entry,'#14775b'],[s.stop,'#c65353']])svg+=`<line x1="38" x2="380" y1="${y(value)}" y2="${y(value)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="6 3"/>`;
- svg+=`<text x="38" y="201" font-size="10" fill="currentColor">${safeDate(bars[0].date)}</text><text x="380" y="201" text-anchor="end" font-size="10" fill="currentColor">${safeDate(bars.at(-1).date)}</text></svg>`;
- $('price-chart').innerHTML=svg;
- $('chart-legend').replaceChildren(text('div',`蓝线：日线收盘价 · 绿线：开仓 ${price(s.entry)} · 红线：止损 ${price(s.stop)}`),...zones.map((z,i)=>text('div',`黄色区 ${i+1}：${s.side==='short'?'潜在支撑':'潜在压力'} ${price(z.low)}${z.high>z.low?' ～ '+price(z.high):''} · ${f(z.r)}R · ${f(z.atrDistance)} ATR`)));
+ const targets=analysis.targets,zones=targets.length?targets:analysis.zones.slice(0,3),short=s.side==='short',role=short?'支撑':'压力';
+ const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ let results=[],allocationValid=true;
+ try{const position=window.PositionRisk.calculate(s),active=rows.filter(row=>Number(row.percent.value)!==0);results=TradePlanner.profits(s,position,active.map(row=>({price:row.p.value,percent:row.percent.value}))).rows;}catch(e){allocationValid=false;}
+ let resultIndex=0;
+ const annotations=[{value:s.entry,color:'#238867',title:`开仓 ${price(s.entry)} · ${short?'做空':'做多'}`,detail:'绿色虚线：本次计划开仓价',source:'',index:-1},
+ {value:s.stop,color:'#d65c65',title:`止损 ${price(s.stop)}`,detail:`计划亏损预算 ${f(s.risk)} U`,source:'红色虚线：计划失效退出位置',index:-1},
+ ...zones.map((z,i)=>{const row=rows[i],percentage=targets.length?Number(row?.percent.value):null,edited=targets.length?Number(row?.p.value):z.target;
+  const result=targets.length&&percentage!==0?results[resultIndex++]:null;
+  return {value:edited>0?edited:z.target,color:targets.length?'#c6922e':'#a78b58',title:targets.length?`第${i+1}档 ${price(edited)} · 平仓 ${f(percentage)}%`:`候选${role} ${price(z.target)}（未通过筛选）`,detail:targets.length?`本档净收益 ${allocationValid?f(result?.net||0)+' U':'比例待修正'} · ${f((short?-1:1)*(edited-s.entry)/Math.abs(s.entry-s.stop))}R`:'仅作观察，不代表建议开仓',source:z.labels.map(label=>label.split(' · ').at(-1)).join('；'),index:i};})];
+ const values=[...bars.flatMap(bar=>[bar.high,bar.low]),...annotations.map(a=>a.value)],low=Math.min(...values),high=Math.max(...values),padding=Math.max((high-low)*.08,.01),min=low-padding,max=high+padding;
+ const height=Math.max(440,annotations.length*76+60),top=30,bottom=height-45,left=55,right=670;
+ const y=value=>+(bottom-(value-min)/(max-min)*(bottom-top)).toFixed(2),x=i=>+(left+i/(bars.length-1)*(right-left)).toFixed(2),safeDate=date=>/^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
+ let svg=`<svg viewBox="0 0 1080 ${height}" role="group" aria-label="日线K线、开仓止损及各档平仓价格比例与收益"><title>交易计划图解</title><text x="55" y="18" font-size="13" fill="currentColor">${escape(market.symbol)} · USD · 最近${bars.length}根完整日线</text>`;
+ for(let i=0;i<5;i++){const value=min+(max-min)*i/4,yy=y(value);svg+=`<line x1="${left}" x2="${right}" y1="${yy}" y2="${yy}" stroke="currentColor" opacity=".1"/><text x="48" y="${yy+4}" text-anchor="end" font-size="11" fill="currentColor">${value.toFixed(2)}</text>`;}
+ zones.forEach(z=>{svg+=`<rect x="${left}" y="${y(z.high)}" width="${right-left}" height="${Math.max(2,y(z.low)-y(z.high))}" fill="#c6922e" opacity=".16"/>`;});
+ bars.forEach((bar,i)=>{const xx=x(i),color=bar.close>=bar.open?'#29a37b':'#df6a75';svg+=`<g><title>${safeDate(bar.date)} 开 ${bar.open.toFixed(2)} 高 ${bar.high.toFixed(2)} 低 ${bar.low.toFixed(2)} 收 ${bar.close.toFixed(2)}</title><line x1="${xx}" x2="${xx}" y1="${y(bar.high)}" y2="${y(bar.low)}" stroke="${color}"/><rect x="${xx-2}" y="${Math.min(y(bar.open),y(bar.close))}" width="4" height="${Math.max(1,Math.abs(y(bar.open)-y(bar.close)))}" fill="${color}"/></g>`;});
+ svg+=`<polyline points="${bars.map((bar,i)=>x(i)+','+y(bar.close)).join(' ')}" fill="none" stroke="#609ada" stroke-width="1" opacity=".5"/>`;
+ annotations.sort((a,b)=>b.value-a.value).forEach((a,i)=>{const yy=y(a.value),cardY=30+i*(height-75)/annotations.length;
+ svg+=`<g role="button" tabindex="0" data-zone="${a.index}" aria-label="${escape(a.title)}"><title>${escape(a.source||a.detail)}</title><line x1="${left}" x2="${right}" y1="${yy}" y2="${yy}" stroke="${a.color}" stroke-dasharray="6 3"/><path d="M ${right} ${yy} L 703 ${cardY+24} L 716 ${cardY+24}" fill="none" stroke="${a.color}"/><circle cx="${right}" cy="${yy}" r="3" fill="${a.color}"/><rect x="716" y="${cardY}" width="350" height="65" rx="7" fill="var(--panel)" stroke="${a.color}"/><text x="726" y="${cardY+19}" font-size="14" font-weight="600" fill="${a.color}">${escape(a.title)}</text><text x="726" y="${cardY+38}" font-size="12" fill="currentColor">${escape(a.detail)}</text><text x="726" y="${cardY+55}" font-size="11" fill="currentColor">${escape(a.source.length>32?a.source.slice(0,32)+'…':a.source)}</text></g>`;
+ });
+ for(const index of [0,Math.floor((bars.length-1)/2),bars.length-1])svg+=`<text x="${x(index)}" y="${height-15}" text-anchor="middle" font-size="11" fill="currentColor">${safeDate(bars[index].date)}</text>`;
+ svg+='</svg>';$('price-chart').innerHTML=svg;$('chart-focus').textContent='点击右侧价位标记，查看来源与日期。';
+ $('chart-legend').replaceChildren(text('div','绿色K线：收盘高于开盘；红色K线：收盘低于开盘。黄色带：历史候选压力／支撑区。右侧标签与对应价位连线。'),text('div','净收益按填写费用计算，假设该档成交，未计滑点；历史价位不保证有效。修改平仓比例后，图中收益同步更新。'));
 }
+function inspectChart(event){
+ if(event.type==='keydown'&&!['Enter',' '].includes(event.key))return;
+ const marker=event.target.closest?.('[data-zone]');if(!marker)return;
+ const index=Number(marker.getAttribute('data-zone')),zones=analysis?.targets.length?analysis.targets:analysis?.zones.slice(0,3),zone=zones?.[index];
+ $('chart-focus').textContent=zone?`${window.PositionRisk.read().side==='short'?'潜在支撑':'潜在压力'} ${price(zone.low)}${zone.high>zone.low?' ～ '+price(zone.high):''} · 距开仓 ${f(zone.atrDistance)} ATR · 来源：${zone.labels.join('；')}`:'开仓和止损是当前交易参数，可在左侧修改；本图只展示计划，不执行交易。';
+}
+$('price-chart').addEventListener('click',inspectChart);$('price-chart').addEventListener('keydown',inspectChart);
 function refreshSizing(){ $('entry').dispatchEvent(new Event('input',{bubbles:true})); }
 async function loadStock(options={}){
  clearTimeout(autoTimer);

@@ -27,6 +27,7 @@ jobs:
           node scripts/test-defaults.js
           node scripts/test-overlay-scroll.js
           node scripts/test-margin-limit.js
+          node scripts/test-leverage-comparison.js
       - uses: actions/configure-pages@v5
       - name: Package website
         run: |

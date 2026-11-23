@@ -35,6 +35,22 @@ function calculate(s){
  const selected=reference,marginCapped=quantity<initialQuantity-1e-10;
  return {quantity,notional,loss,margin,exit,minLeverage,maxLeverage,reference,selected,lower,upper,marginCapped};
 }
+function compareLeverages(s){
+ const base=calculate({...s,marginLimit:null}),selected=calculate(s).selected;
+ const unit=(base.loss-s.reserve)/base.quantity;
+ return [...new Set([1,2,3,5,10,15,20,selected].filter(x=>x!==null))].sort((a,b)=>a-b).map(leverage=>{
+  let quantity=Math.min(base.quantity,s.marginLimit===null||s.marginLimit===undefined?Infinity:s.marginLimit*leverage/s.entry);
+  if(s.step>0)quantity=Math.floor(quantity/s.step)*s.step;
+  const notional=quantity*s.entry,margin=notional/leverage,loss=quantity*unit+s.reserve;
+  const checks=[];
+  if(leverage>s.platformMax)checks.push('超过平台杠杆');
+  if(loss>margin+1e-8)checks.push('止损预算超过保证金');
+  if(quantity<=0)checks.push('仓位不足');
+  const reached=Math.abs(loss-s.risk)<.01;
+  return {leverage,quantity,notional,margin,loss,reached,selected:leverage===selected,checks};
+ });
+}
+calculate.compareLeverages=compareLeverages;
 if(typeof module!=='undefined'&&module.exports){module.exports=calculate;return;}
 window.PositionRisk={calculate,read};
 const ids=['risk','entry','stop','side','cap','feeIn','feeOut','slip','reserve','platformMax','marginLimit'];
@@ -53,10 +69,10 @@ function update(save){
   el('simple-note').textContent=r.reference===null?'无法给出逐仓参考杠杆；下方高级设置可查看约束。':'按止损损失占保证金 '+fmt(s.cap)+'%计算，理论杠杆上限为 '+fmt(r.maxLeverage)+'倍；向下取整数并限制在填写的平台上限内，得到 '+fmt(r.reference)+'倍。这是预算上限，不是安全杠杆建议。';
   el('reference-status').textContent='仅为预算上限，未核验强平。'+(r.margin===null?'':' 止损损失约占本笔保证金 '+pct(r.loss/r.margin)+'。');
   el('advanced-note').textContent='等效数量 '+fmt(r.quantity)+'；止损距离 '+pct(Math.abs(s.entry-s.stop)/s.entry)+'；假设止损成交价 '+r.exit.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})+'。账户本金不参与计算。按100%预算口径，理论最低保证金 '+fmt(r.loss/(s.cap/100))+' U，理论杠杆上限 '+fmt(r.maxLeverage)+'倍；平台是否支持及强平位置需另行核实。';
-  el('rows').replaceChildren(...[...new Set([1,2,3,5,10,15,20,r.reference].filter(x=>x!==null))].sort((a,b)=>a-b).map(l=>{
-   const tr=document.createElement('tr'),m=r.notional/l,checks=[];if(l===r.selected)tr.className='current-leverage';if(s.marginLimit!==null&&m>s.marginLimit+1e-8)checks.push('超过保证金上限');if(l>s.platformMax)checks.push('超过平台上限');
-   if(r.loss/m>s.cap/100)checks.push('超过损失比例上限');
-   [fmt(l)+'倍',fmt(m)+' U',pct(r.loss/m),checks.join('；')||'通过预算，未核验强平'].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.append(td);});return tr;
+  el('rows').replaceChildren(...compareLeverages(s).map(row=>{
+   const tr=document.createElement('tr');if(row.selected)tr.className='current-leverage';
+   const status=row.checks.length?row.checks.join('；'):row.reached?'达到亏损预算':'受保证金上限限制';
+   [fmt(row.leverage)+'倍',fmt(row.notional)+' U',fmt(row.margin)+' U',fmt(row.loss)+' U',pct(row.loss/row.margin),status].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.append(td);});return tr;
   }));
  }catch(e){el('error').textContent=e.message;el('output').hidden=false;for(const id of ['notional','margin','leverage-value'])el(id).textContent='—';el('risk-note').textContent='等待有效参数，暂不显示预算结果。';el('reference-status').textContent='';el('warning').textContent='';el('advanced-note').textContent='请先修正输入。';el('rows').replaceChildren();}
  window.dispatchEvent(new Event('trade-input-change'));

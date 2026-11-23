@@ -1,10 +1,9 @@
 (function(){
 'use strict';
 function calculate(s){
- const keys=['equity','risk','entry','stop','leverage','available','cap','feeIn','feeOut','slip','reserve','step'];
+ const keys=['risk','entry','stop','leverage','cap','feeIn','feeOut','slip','reserve','step'];
  if(keys.some(k=>!Number.isFinite(s[k])))throw Error('请完整填写必填数值。');
- if(['equity','risk','entry','stop','available'].some(k=>s[k]<=0)||s.leverage<1)throw Error('资金与价格必须大于0，杠杆至少1倍。');
- if(s.risk>s.equity||s.available>s.equity)throw Error('亏损预算和可用保证金不能超过账户总资金。');
+ if(['risk','entry','stop'].some(k=>s[k]<=0)||s.leverage<1)throw Error('资金与价格必须大于0，杠杆至少1倍。');
  if(['feeIn','feeOut','slip','reserve','step'].some(k=>s[k]<0)||s.slip>=100||s.cap<=0||s.cap>=100)throw Error('费用和步长不能为负；滑点小于100%，损失比例上限须大于0且小于100%。');
  if(s.reserve>=s.risk)throw Error('其他费用预留必须小于亏损预算。');
  if(s.side==='long'?s.stop>=s.entry:s.stop<=s.entry)throw Error(s.side==='long'?'做多时，止损价必须低于开仓价。':'做空时，止损价必须高于开仓价。');
@@ -14,43 +13,43 @@ function calculate(s){
  if(s.step>0)quantity=Math.floor(quantity/s.step)*s.step;
  if(quantity<=0)throw Error('按当前数量步长无法开仓，请重新设置预算或步长。');
  const notional=quantity*s.entry,loss=quantity*unit+s.reserve;
- const minLeverage=Math.max(1,notional/s.available),maxLeverage=s.cap/100*notional/loss;
+ const minLeverage=1,maxLeverage=s.cap/100*notional/loss;
  const platformMax=s.platformMax??20;
  if(!Number.isFinite(platformMax)||platformMax<1)throw Error('平台最高杠杆至少为1倍。');
  const lower=Math.ceil(minLeverage-1e-10),upper=Math.floor(Math.min(maxLeverage,platformMax)+1e-10);
- const reference=lower<=upper?lower:null;
+ const reference=lower<=upper?upper:null;
  const selected=s.mode==='manual'?s.leverage:reference;
  const margin=selected===null?null:notional/selected;
  return {quantity,notional,loss,margin,exit,minLeverage,maxLeverage,reference,selected,lower,upper};
 }
 if(typeof module!=='undefined'&&module.exports){module.exports=calculate;return;}
-const ids=['equity','risk','entry','stop','side','leverage','available','cap','feeIn','feeOut','slip','reserve','step','liquidation','mode','platformMax'];
+const ids=['risk','entry','stop','side','leverage','cap','feeIn','feeOut','slip','reserve','step','liquidation','mode','platformMax'];
 const el=id=>document.getElementById(id),fmt=n=>n.toLocaleString('zh-CN',{maximumFractionDigits:2}),pct=n=>fmt(n*100)+'%';
-function read(){const s={};for(const id of ids){const v=el(id).value;s[id]=(id==='side'||id==='mode')?v:v===''?null:Number(v);}if(s.available===null)s.available=s.equity;return s;}
+function read(){const s={};for(const id of ids){const v=el(id).value;s[id]=(id==='side'||id==='mode')?v:v===''?null:Number(v);}return s;}
 function update(save){
  try{
   const s=read();const r=calculate(s);
   if(s.liquidation!==null&&(!Number.isFinite(s.liquidation)||s.liquidation<=0))throw Error('预估强平价必须大于0。');
   el('error').textContent='';el('output').hidden=false;
-  el('notional').textContent=fmt(r.notional)+' U';el('margin-label').textContent=(r.selected===null?'所需保证金':fmt(r.selected)+'倍对应的逐仓保证金');el('margin').textContent=r.margin===null?'无法匹配':fmt(r.margin)+' U';el('leverage-value').textContent=r.selected===null?'无可用倍数':fmt(r.selected)+'倍';el('leverage-caption').textContent=s.mode==='manual'?'你手动选择的逐仓杠杆':'逐仓参考杠杆';
-  el('risk-note').textContent='止损预计亏 '+fmt(r.loss)+' U，占账户 '+pct(r.loss/s.equity)+(s.feeIn||s.feeOut||s.slip||s.reserve?'；已包含填写的费用及滑点假设':'；未计费用与滑点');
-  const warnings=[];if(r.selected===null)warnings.push('当前预算内没有符合条件的整数杠杆。请缩小仓位或重新评估预算，不要直接开到上限。');if(r.margin!==null&&r.margin>s.available)warnings.push('当前杠杆下保证金不够，这个仓位无法按预算开出。减少仓位可降低资金需求。');
+  el('notional').textContent=fmt(r.notional)+' U';el('margin-label').textContent=(r.selected===null?'所需保证金':fmt(r.selected)+'倍对应的逐仓保证金');el('margin').textContent=r.margin===null?'无法匹配':fmt(r.margin)+' U';el('leverage-value').textContent=r.selected===null?'无可用倍数':fmt(r.selected)+'倍';el('leverage-caption').textContent=s.mode==='manual'?'你手动选择的逐仓杠杆':'逐仓杠杆预算上限';
+  el('risk-note').textContent='止损预计亏 '+fmt(r.loss)+' U'+(s.feeIn||s.feeOut||s.slip||s.reserve?'；已包含填写的费用及滑点假设':'；未计费用与滑点');
+  const warnings=[];if(r.selected===null)warnings.push('当前预算内没有符合条件的整数杠杆。请缩小仓位或重新评估预算，不要直接开到上限。');
   if(r.margin!==null&&r.loss/r.margin>s.cap/100+1e-10)warnings.push('止损损失超过你设置的保证金损失比例上限。');
-  if(r.selected!==null&&r.selected>s.platformMax)warnings.push('所选杠杆超过填写的平台上限。');if(r.loss/s.equity>=0.1)warnings.push('这笔亏损预算达到或超过账户的10%；多笔持仓的风险还需合计。');
+  if(r.selected!==null&&r.selected>s.platformMax)warnings.push('所选杠杆超过填写的平台上限。');
   el('warning').textContent=warnings.join(' ');
-  el('simple-note').textContent=r.reference===null?'无法给出逐仓参考杠杆；下方高级设置可查看约束。':s.mode==='manual'?'当前为手动模式。按现有预算自动计算的参考值为 '+fmt(r.reference)+'倍。':'为什么是 '+fmt(r.reference)+'倍：它是保证金够用、止损损失比例不超限、且不超过填写的平台上限的最低整数倍数。优先保留保证金缓冲，不追求最大杠杆。';
+  el('simple-note').textContent=r.reference===null?'无法给出逐仓参考杠杆；下方高级设置可查看约束。':s.mode==='manual'?'当前为手动模式。按现有预算自动计算的参考值为 '+fmt(r.reference)+'倍。':'按止损时最多损失保证金 '+fmt(s.cap)+'%计算，理论杠杆上限为 '+fmt(r.maxLeverage)+'倍；向下取整数并限制在填写的平台上限内，得到 '+fmt(r.reference)+'倍。这是预算上限，不是安全杠杆建议。';
   el('reference-status').textContent='仅按预算计算，尚未验证强平；不是个性化投资建议。'+(r.margin===null?'':' 止损损失约占本笔保证金 '+pct(r.loss/r.margin)+'。');
   el('leverage').disabled=s.mode!=='manual';
-  el('advanced-note').textContent='等效数量 '+fmt(r.quantity)+'；止损距离 '+pct(Math.abs(s.entry-s.stop)/s.entry)+'；假设止损成交价 '+fmt(r.exit)+'。保证金预算要求杠杆至少 '+fmt(r.minLeverage)+'倍；损失比例约束的理论上限 '+fmt(r.maxLeverage)+'倍（非推荐值）。'+(r.minLeverage>r.maxLeverage?' 当前两项约束无法同时满足。':'');
+  el('advanced-note').textContent='等效数量 '+fmt(r.quantity)+'；止损距离 '+pct(Math.abs(s.entry-s.stop)/s.entry)+'；假设止损成交价 '+fmt(r.exit)+'。账户本金不参与计算。按填写的损失比例，理论最低保证金 '+fmt(r.loss/(s.cap/100))+' U，理论杠杆上限 '+fmt(r.maxLeverage)+'倍；平台是否支持及强平位置需另行核实。';
   el('rows').replaceChildren(...[...new Set([1,2,3,5,10,15,20,s.leverage,r.reference].filter(x=>x!==null))].sort((a,b)=>a-b).map(l=>{
    const tr=document.createElement('tr'),m=r.notional/l,checks=[];if(l>s.platformMax)checks.push('超过平台上限');
-   if(m>s.available)checks.push('保证金不足');if(r.loss/m>s.cap/100)checks.push('超过损失比例上限');
+   if(r.loss/m>s.cap/100)checks.push('超过损失比例上限');
    [fmt(l)+'倍',fmt(m)+' U',pct(r.loss/m),checks.join('；')||'通过预算，未核验强平'].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.append(td);});return tr;
   }));
   el('liq-note').textContent=s.liquidation===null?'未填写强平价：参考倍数未通过强平核验，请在平台核对后再决策。':(s.side==='long'?s.liquidation<r.exit:s.liquidation>r.exit)?'所填强平价在假设止损成交价之外；仍需核实标记价格与跳空、滑点下的缓冲。':'强平价已到达或越过假设止损成交价，可能先强平。';
  }catch(e){el('error').textContent=e.message;el('output').hidden=true;el('advanced-note').textContent='请先修正输入。';el('rows').replaceChildren();el('liq-note').textContent='';}
- if(save){try{localStorage.setItem('position-calculator-isolated-v2',JSON.stringify(Object.fromEntries(ids.map(id=>[id,el(id).value]))));}catch(e){}}
+ if(save){try{localStorage.setItem('position-calculator-trade-v3',JSON.stringify(Object.fromEntries(ids.map(id=>[id,el(id).value]))));}catch(e){}}
 }
-try{const saved=JSON.parse(localStorage.getItem('position-calculator-isolated-v2')||'null');if(saved)for(const id of ids)if(Object.hasOwn(saved,id))el(id).value=saved[id];}catch(e){}
+try{const saved=JSON.parse(localStorage.getItem('position-calculator-trade-v3')||'null');if(saved)for(const id of ids)if(Object.hasOwn(saved,id))el(id).value=saved[id];}catch(e){}
 ids.forEach(id=>el(id).addEventListener('input',()=>update(true)));update(false);
 })();

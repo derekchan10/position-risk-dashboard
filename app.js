@@ -80,5 +80,36 @@ for(const id of ['default-risk','default-margin'])el(id).addEventListener('chang
  el('risk').value=risk;el('marginLimit').value=marginLimit??'';update(true);
 });
 const settings=el('settings-dialog');el('open-settings').addEventListener('click',()=>settings.showModal());el('close-settings').addEventListener('click',()=>settings.close());settings.addEventListener('click',e=>{if(e.target===settings){const b=settings.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right)settings.close();}});
+// Keep the underlying mobile page stationary while top-layer help/dialogs are open.
+if(typeof window.matchMedia==='function'){
+ const overlays=[...document.querySelectorAll('[popover],dialog')],open=new Set();
+ let saved=null,restoreFrame=null;
+ const lock=()=>{
+  if(saved)return;
+  const body=document.body,root=document.documentElement;
+  saved={x:window.scrollX,y:window.scrollY,body:body.style.cssText,root:root.style.cssText,opener:document.activeElement};
+  root.style.setProperty('--overlay-height',window.innerHeight+'px');root.style.overflow='hidden';
+  body.style.position='fixed';body.style.top=-saved.y+'px';body.style.left=-saved.x+'px';body.style.width='100%';body.style.overflow='hidden';
+ };
+ const release=()=>{
+  if(open.size||!saved)return;
+  const previous=saved;saved=null;
+  document.body.style.cssText=previous.body;document.documentElement.style.cssText=previous.root;
+  if(previous.opener?.isConnected)previous.opener.focus({preventScroll:true});
+  window.scrollTo({left:previous.x,top:previous.y,behavior:'instant'});
+ };
+ for(const overlay of overlays){
+  overlay.addEventListener('beforetoggle',event=>{
+   if(event.newState==='open'){
+    if(!saved&&!window.matchMedia('(max-width:700px)').matches)return;
+    if(restoreFrame!==null)cancelAnimationFrame(restoreFrame);
+    open.add(overlay);lock();
+   }else open.delete(overlay);
+  });
+  const closed=()=>{open.delete(overlay);if(restoreFrame!==null)cancelAnimationFrame(restoreFrame);restoreFrame=requestAnimationFrame(()=>{restoreFrame=null;release();});};
+  overlay.addEventListener('toggle',event=>{if(event.newState==='closed')closed();});
+  overlay.addEventListener('close',closed);
+ }
+}
 ids.filter(id=>id!=='side').forEach(id=>el(id).addEventListener('input',()=>update(true)));document.querySelectorAll('input[name=side]').forEach(r=>r.addEventListener('change',()=>update(true)));update(false);
 })();

@@ -1,0 +1,12 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('app.js','utf8'),code=source.slice(source.indexOf('// Keep the underlying mobile page'),source.indexOf("ids.filter(id=>id!=='side')"));
+const frames=new Map(),moves=[],body={style:{cssText:'original-body'}},root={style:{cssText:'original-root',setProperty(){}}};let focused=0;
+const overlays=Array.from({length:2},()=>({listeners:{},addEventListener(n,f){this.listeners[n]=f;}}));
+const context={Set,document:{querySelectorAll:()=>overlays,body,documentElement:root,activeElement:{isConnected:true,focus:opts=>{assert(opts.preventScroll);focused++;}}},window:{matchMedia:()=>({matches:true}),scrollX:0,scrollY:640,innerHeight:700,scrollTo:opts=>moves.push(opts)},requestAnimationFrame:f=>{const id=Math.random();frames.set(id,f);return id;},cancelAnimationFrame:id=>frames.delete(id)};
+vm.runInNewContext(code,context);const flush=()=>{for(const [id,f]of frames){frames.delete(id);f();}};
+overlays[0].listeners.beforetoggle({newState:'open'});assert.equal(body.style.position,'fixed');assert.equal(body.style.top,'-640px');
+overlays[0].listeners.beforetoggle({newState:'closed'});overlays[0].listeners.toggle({newState:'closed'});
+overlays[1].listeners.beforetoggle({newState:'open'});flush();assert.equal(moves.length,0,'switching help must not unlock background');
+overlays[1].listeners.beforetoggle({newState:'closed'});overlays[1].listeners.toggle({newState:'closed'});flush();assert.equal(body.style.cssText,'original-body');assert.equal(root.style.cssText,'original-root');assert.equal(moves[0].top,640);assert.equal(focused,1);
+context.window.matchMedia=()=>({matches:false});overlays[0].listeners.beforetoggle({newState:'open'});assert.equal(moves.length,1,'desktop opening does not activate mobile lock');
+console.log('PASS: mobile overlay lock, switch without intermediate unlock, original scroll/focus restore and desktop isolation');

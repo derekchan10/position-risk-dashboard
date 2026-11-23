@@ -25,6 +25,7 @@ jobs:
           node scripts/test-setup.js
           node scripts/test-one-click.js
           node scripts/test-defaults.js
+          node scripts/test-overlay-scroll.js
           node scripts/test-margin-limit.js
       - uses: actions/configure-pages@v5
       - name: Package website

@@ -11,7 +11,7 @@ const rows=[0,1].map((_,i)=>{
  p.type=percent.type='number';
  p.addEventListener('blur',()=>{if(p.value!==''&&Number.isFinite(Number(p.value)))p.value=Number(p.value).toFixed(2);savePlan();});percent.readOnly=true;p.min='0';p.step='any';percent.min='0';percent.max='100';percent.step='any';
  p.setAttribute('aria-label',`第${i+1}档止盈价格`);percent.setAttribute('aria-label',`第${i+1}档卖出比例，百分比`);p.placeholder='价格';percent.placeholder='%';
- const r=text('td','—'),net=text('td','—');for(const input of [p,percent]){const td=document.createElement('td');td.append(input);tr.append(td);input.addEventListener('input',()=>{if(input===p)percent.value=p.value?([40,30][i]):'';renderPlan();savePlan();});}tr.append(r,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
+ const r=text('td','—'),net=text('td','—');r.setAttribute('data-label','盈亏比 · ATR距离');net.setAttribute('data-label','本档预计净收益');for(const input of [p,percent]){const td=document.createElement('td');td.setAttribute('data-label',input===p?`第${i+1}档 · 止盈价格`:'卖出原始仓位');td.append(input);if(input===percent)td.append(text('span','%'));tr.append(td);input.addEventListener('input',()=>{if(input===p)percent.value=p.value?([40,30][i]):'';renderPlan();savePlan();});}tr.append(r,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
 });
 function savePlan(){try{localStorage.setItem('profit-plan-week-v1',JSON.stringify({rows:rows.map(x=>({price:x.p.value,percent:x.percent.value})),symbol:$('stock-symbol').value,date:$('analysis-date').value,style:$('plan-style').value}));}catch(e){}}
 try{const saved=JSON.parse(localStorage.getItem('profit-plan-week-v1')||'null');if(saved){$('stock-symbol').value=saved.symbol||'NVDA';if(saved.date&&saved.date<=ny)$('analysis-date').value=saved.date;$('plan-style').value='week';}}catch(e){}
@@ -50,15 +50,15 @@ function authorizationHint(){
 function renderPlan(){
  renderSnapshot();
  $('plan-error').textContent='';$('plan-summary').replaceChildren();rows.forEach(x=>{x.r.textContent='—';x.net.textContent='—';});
- if(authorized===false){authorizationHint();$('plan-summary').append(text('p','请先授权富途行情，系统将自动生成止盈建议。'));return;}
+ if(authorized===false){authorizationHint();$('plan-summary').append(text('p','授权行情后，自动匹配水平目标位。'));return;}
  try{
   const {s,r}=current();$('plan-trade-context').textContent=`${s.side==='long'?'做多':'做空'} ${price(s.entry)} / 止损 ${price(s.stop)}`;
   const raw=rows.map(x=>({price:x.p.value,percent:x.percent.value})),active=raw.filter(x=>x.price!==''||x.percent!=='');
-  if(!active.length){$('plan-summary').append(text('p',analysis?'当前不生成止盈计划，等待更合适的入场位置。':'填写参数后自动分析。'));return;}
+  if(!active.length){$('plan-summary').append(text('p',analysis?'暂无合适目标，等待更好的入场位置。':'输入股票与交易价格，自动生成分批计划。'));return;}
   const result=TradePlanner.profits(s,r,raw);let n=0;
-  rows.forEach(x=>{if(x.p.value!==''||x.percent.value!==''){const a=result.rows[n++];x.r.textContent=f(a.r)+':1'+(analysis&&analysis.atr>0?' / '+f(Math.abs(a.price-s.entry)/analysis.atr)+' ATR':'');x.net.textContent=f(a.net)+' U';}});
+  rows.forEach(x=>{if(x.p.value!==''||x.percent.value!==''){const a=result.rows[n++];x.r.textContent=f(a.r)+'R'+(analysis&&analysis.atr>0?' / '+f(Math.abs(a.price-s.entry)/analysis.atr)+' ATR':'');x.net.textContent=f(a.net)+' U';}});
   const summary=document.createElement('div');summary.className='plan-summary';
-  [`两档预计净收益 ${f(result.net)} U · ${f(result.netR)}R`, `兑现 ${f(result.total)}% · 剩余 ${f(result.remaining*100)}%（${f(result.remainingQuantity)}单位）`].forEach(t=>summary.append(text('div',t)));
+  [`计划净收益 ${f(result.net)} U · ${f(result.netR)}R`, `卖出 ${f(result.total)}% 原始仓位 · 保留 ${f(result.remaining*100)}%`].forEach(t=>summary.append(text('div',t)));
   summary.append(text('div',`计划减仓数量：${result.rows.map((x,i)=>'P'+(i+1)+' '+f(x.quantity)+'单位').join('；')}。`));$('plan-summary').append(summary);
  }catch(e){$('plan-trade-context').textContent='等待有效交易价格';$('plan-error').textContent=e.message;}
 }

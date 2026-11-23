@@ -21,6 +21,7 @@ jobs:
       - name: Test calculations
         run: |
           node scripts/test-planner.js
+          node scripts/test-level-quality.js
           node scripts/test-setup.js
           node scripts/test-one-click.js
           node scripts/test-defaults.js

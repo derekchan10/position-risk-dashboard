@@ -19,22 +19,43 @@ function analyze(data,date,entry,stop,side){
  if(!valid)throw Error('行情包含无效价格。');
  const last=bars.at(-1),risk=Math.abs(entry-stop),mas=[20,50,100,200].map(n=>({n,value:bars.length>=n?bars.slice(-n).reduce((a,b)=>a+b.close,0)/n:null}));
  const atr=wilderATR(bars);
- const role=dir===1?'潜在压力':'潜在支撑';
- const raw=[];const add=(p,source)=>{if(dir*(p-entry)>0)raw.push({price:p,label:role+' · '+source});};
- // Moving averages are auxiliary only; never enter horizontal target clustering.
- add(last.high,'前一交易日高点 '+last.date);add(last.low,'前一交易日低点 '+last.date);
- const start=Math.max(2,bars.length-90);
- for(let i=start;i<bars.length-2;i++){
-  const b=bars[i],around=[bars[i-2],bars[i-1],bars[i+1],bars[i+2]];
-  if(around.every(x=>b.high>=x.high)&&around.some(x=>b.high>x.high))add(b.high,'历史局部高点 '+b.date);
-  if(around.every(x=>b.low<=x.low)&&around.some(x=>b.low<x.low))add(b.low,'历史局部低点 '+b.date);
- }
+ const role=dir===1?'潜在压力':'潜在支撑',history=bars.slice(-252),offset=bars.length-history.length;
  const distance=Math.max(entry*.003,Math.min(atr*.2,entry*.01));
- raw.sort((a,b)=>a.price-b.price);const zones=[];
- for(const point of raw){let z=zones.at(-1);if(!z||point.price-z.low>distance){z={low:point.price,high:point.price,labels:[]};zones.push(z);}z.high=point.price;z.labels.push(point.label);}
- zones.forEach(z=>{z.labels=[...new Set(z.labels)];z.target=dir===1?z.low:z.high;z.r=dir*(z.target-entry)/risk;z.atrDistance=atr>0?Math.abs(z.target-entry)/atr:null;z.confluence=mas.some(m=>m.value!==null&&m.value>=z.low-distance&&m.value<=z.high+distance);});
- zones.sort((a,b)=>dir*(a.target-b.target));
- return {date,entry,stop,lastDate:last.date,lastClose:last.close,count:bars.length,atr,mas,zones,targets:zones.filter(z=>z.r>=1&&z.atrDistance!==null&&z.atrDistance<=4),side};
+ const raw=[];const add=(p,source,index)=>{if(dir*(p-entry)>0)raw.push({price:p,label:role+' · '+source,index});};
+ add(last.high,'前一交易日高点 '+last.date,bars.length-1);add(last.low,'前一交易日低点 '+last.date,bars.length-1);
+ for(let i=Math.max(2,offset);i<bars.length-2;i++){
+  const b=bars[i],around=[bars[i-2],bars[i-1],bars[i+1],bars[i+2]];
+  if(around.every(x=>b.high>=x.high)&&around.some(x=>b.high>x.high))add(b.high,'历史局部高点 '+b.date,i);
+  if(around.every(x=>b.low<=x.low)&&around.some(x=>b.low<x.low))add(b.low,'历史局部低点 '+b.date,i);
+ }
+ // Consolidation is a compact five-session range, not a volume-profile estimate.
+ for(let i=Math.max(4,offset+4);i<bars.length;i++){
+  const window=bars.slice(i-4,i+1),hi=Math.max(...window.map(b=>b.high)),lo=Math.min(...window.map(b=>b.low));
+  if(hi-lo<=atr&&Math.max(...window.map(b=>b.close))-Math.min(...window.map(b=>b.close))<=atr*.5){
+   add(hi,'整理区上沿 '+bars[i].date,i);add(lo,'整理区下沿 '+bars[i].date,i);
+  }
+ }
+ raw.sort((a,b)=>a.price-b.price);const allZones=[];
+ for(const point of raw){let z=allZones.at(-1);if(!z||point.price-z.low>distance){z={low:point.price,high:point.price,labels:[],indices:[]};allZones.push(z);}z.high=point.price;z.labels.push(point.label);z.indices.push(point.index);}
+ allZones.forEach(z=>{
+  z.labels=[...new Set(z.labels)];z.target=dir===1?z.low:z.high;z.r=dir*(z.target-entry)/risk;z.atrDistance=atr>0?Math.abs(z.target-entry)/atr:null;z.confluence=mas.some(m=>m.value!==null&&m.value>=z.low-distance&&m.value<=z.high+distance);
+  // A new contact requires three intervening non-contact sessions. Adjacent candles are one visit.
+  const visits=[];let previous=-Infinity;
+  for(let i=offset;i<bars.length;i++){
+   const b=bars[i],contact=b.high>=z.low-distance&&b.low<=z.high+distance;
+   if(contact){if(i-previous>=4)visits.push(i);previous=i;}
+  }
+  const reactions=visits.filter(i=>bars.slice(i+1,i+6).some(b=>dir===1?b.close<=z.low-atr*.5:b.close>=z.high+atr*.5));
+  z.touches=visits.length;z.reactions=reactions.length;z.consolidation=z.labels.some(l=>l.includes('整理区'));
+  z.lastTouch=visits.length?bars[visits.at(-1)].date:null;
+  z.broken=bars.slice(-2).every(b=>dir===1?b.close>z.high+atr*.2:b.close<z.low-atr*.2);
+  z.quality=z.reactions>=2&&z.consolidation?'多次反应＋整理区':z.reactions>=2?'多次独立反应':z.consolidation?'整理区参考':'单点参考';
+  z.validity=z.broken?'最近两日已越过，暂不作目标':'未见连续收盘突破';
+  delete z.indices;
+ });
+ allZones.sort((a,b)=>dir*(a.target-b.target));
+ const zones=allZones.filter(z=>!z.broken);
+ return {date,entry,stop,lastDate:last.date,lastClose:last.close,count:bars.length,historyCount:history.length,historyFrom:history[0].date,atr,mas,zones,excludedZones:allZones.filter(z=>z.broken),targets:zones.filter(z=>z.r>=1&&z.atrDistance!==null&&z.atrDistance<=4).slice(0,3),side};
 }
 function rsiSeries(bars,period=14){
  const result=Array(bars.length).fill(null);if(bars.length<=period)return result;

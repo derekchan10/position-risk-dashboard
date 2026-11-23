@@ -98,10 +98,10 @@ function renderAnalysis(){
   const sources=near?near.labels.map(label=>({type:label.split(' · ').at(-1).replace(/\s*\d{4}-\d{2}-\d{2}.*$/,''),date:label.match(/\d{4}-\d{2}-\d{2}/)?.[0]||'未提供'})):[];
   const evidence=[
    [dir===1?'潜在压力价格':'潜在支撑价格',near?`${price(near.low)}${near.high>near.low?' ～ '+price(near.high):''}`:'暂无'],
-   ['来源类型',[...new Set(sources.map(x=>x.type))].join('、')||'暂无'],
-   ['形成交易日',[...new Set(sources.map(x=>x.date))].join('、')||'暂无']
+   ['来源类型',near?near.quality+' · '+[...new Set(sources.map(x=>x.type))].slice(0,2).join('、'):'暂无'],
+   ['最近形成日',sources.length?sources.map(x=>x.date).sort().at(-1):'暂无']
   ];
-  $('zone-explanation').textContent=near?`最近水平区盈亏比 ${f(near.r)}R，筛选门槛为1.5R；达到该盈亏比的价格为 ${price(s.entry+dir*1.5*risk)}。止损距离 ${price(risk)} 美元。水平区聚合了 ${near.labels.length} 个历史价位。`:'当前价前方未找到已确认的历史水平区，不生成固定目标。';
+  $('zone-explanation').textContent=near?`最近水平区盈亏比 ${f(near.r)}R，筛选门槛为1.5R；达到该盈亏比的价格为 ${price(s.entry+dir*1.5*risk)}。止损距离 ${price(risk)} 美元。水平区聚合了 ${near.labels.length} 个历史价位。历史范围 ${analysis.historyFrom} 起，最多252个交易日，实际${analysis.historyCount}日。本区${near.touches}次独立接触、${near.reactions}次至少0.5 ATR的离区反应；${near.consolidation?'含5日整理区':'未匹配整理区'}。最近接触 ${near.lastTouch||'未提供'}；${near.validity}。已排除${analysis.excludedZones.length}个连续收盘越过的旧水平区。`:'当前价前方未找到已确认的历史水平区，不生成固定目标。';
   renderPriceChart(s);
   $('atr-distances').replaceChildren(text('p',`止损距离 ${f(risk/analysis.atr)} ATR；距近期${dir===1?'低':'高'}点 ${f(Math.abs(s.entry-base)/analysis.atr)} ATR；目标最远 ${f(maxATR)} ATR。`),...analysis.targets.map((z,i)=>text('p',`第${i+1}档目标距离 ${f(z.atrDistance)} ATR`)));
   $('decision-evidence').replaceChildren(...evidence.map(([label,value])=>{const row=text('div','');row.className='evidence-row';row.append(text('span',label),text('strong',value));return row;}));
@@ -135,7 +135,7 @@ function renderPriceChart(s){
  {value:s.stop,color:'#d65c65',title:`止损 ${price(s.stop)}`,detail:`计划亏损预算 ${f(s.risk)} U`,source:'红色虚线：计划失效退出位置',index:-1},
  ...zones.map((z,i)=>{const row=rows[i],percentage=targets.length?Number(row?.percent.value):null,edited=targets.length?Number(row?.p.value):z.target;
   const result=targets.length&&percentage!==0?results[resultIndex++]:null;
-  return {value:edited>0?edited:z.target,color:targets.length?'#c6922e':'#a78b58',title:targets.length?`第${i+1}档 ${price(edited)} · 平仓 ${f(percentage)}%`:`候选${role} ${price(z.target)}（未通过筛选）`,detail:targets.length?`本档净收益 ${allocationValid?f(result?.net||0)+' U':'比例待修正'} · ${f((short?-1:1)*(edited-s.entry)/Math.abs(s.entry-s.stop))}R`:'仅作观察，不代表建议开仓',source:z.labels.map(label=>label.split(' · ').at(-1)).join('；'),index:i};})];
+  return {value:edited>0?edited:z.target,color:targets.length?'#c6922e':'#a78b58',title:targets.length?`第${i+1}档 ${price(edited)} · 平仓 ${f(percentage)}%`:`候选${role} ${price(z.target)}（未通过筛选）`,detail:targets.length?`本档净收益 ${allocationValid?f(result?.net||0)+' U':'比例待修正'} · ${f((short?-1:1)*(edited-s.entry)/Math.abs(s.entry-s.stop))}R`:'仅作观察，不代表建议开仓',source:(z.quality?z.quality+' · ':'')+z.labels.map(label=>label.split(' · ').at(-1)).join('；'),index:i};})];
  const values=[...bars.flatMap(bar=>[bar.high,bar.low]),...annotations.map(a=>a.value)],low=Math.min(...values),high=Math.max(...values),padding=Math.max((high-low)*.08,.01),min=low-padding,max=high+padding;
  const height=Math.max(440,annotations.length*76+60),top=30,bottom=height-45,left=55,right=670;
  const y=value=>+(bottom-(value-min)/(max-min)*(bottom-top)).toFixed(2),x=i=>+(left+i/(bars.length-1)*(right-left)).toFixed(2),safeDate=date=>/^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';

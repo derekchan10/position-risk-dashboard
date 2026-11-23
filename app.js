@@ -70,9 +70,9 @@ function update(save){
   const roundedRows=compareLeverages(s).filter(row=>row.leverage%5===0&&r.selected!==null&&row.leverage<=Math.min(r.selected,s.platformMax)&&row.checks.length===0);
   el('five-leverage').replaceChildren();
   if(roundedRows.length){
-   const title=document.createElement('strong');title.textContent='5的倍数参考 · 金额 U';el('five-leverage').append(title);
+   const title=document.createElement('strong');title.textContent='逐仓方案';el('five-leverage').append(title);
    const table=document.createElement('table'),head=document.createElement('tr');
-   for(const label of ['杠杆','仓位','保证金','止损亏损']){const th=document.createElement('th');th.textContent=label;head.append(th);}table.append(head);
+   for(const label of ['杠杆','仓位 U','保证金 U','止损亏损 U']){const th=document.createElement('th');th.textContent=label;head.append(th);}table.append(head);
    for(const row of [...roundedRows].reverse()){
     const tr=document.createElement('tr');for(const value of [fmt(row.leverage)+'倍',fmt(row.notional),fmt(row.margin),fmt(row.loss)]){const td=document.createElement('td');td.textContent=value;tr.append(td);}table.append(tr);
    }el('five-leverage').append(table);

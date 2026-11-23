@@ -19,3 +19,18 @@ GitHub Pages 选择 Deploy from a branch，分支 main，目录 / (root)。
 - 推荐是透明规则生成的候选，不是已验证盈利策略，也不保证成交、收益或强平安全。
 
 本地检查：`node scripts/test-planner.js`。行情刷新：`python3 scripts/update_market.py`。
+
+## 富途个人行情接入
+
+运行 `python3 scripts/futu_bridge.py`，保持终端运行，然后打开
+<http://localhost:8768> → 智能止盈计划 → 行情来源选“富途（本机授权）” → 连接富途。
+在富途官方域名 `webapi.futunn.com` 登录，只勾选 `quote:read`（读取行情）。
+不要授权交易或账户读取。服务会拒绝交易及写入权限。
+
+本机桥接使用官方 OAuth PKCE / REST，只监听 127.0.0.1，不保存凭证文件、日志、环境变量，
+刷新凭证也只在内存中。关闭服务会清除连接；“断开”清除本机凭证，但不等同于在富途撤销授权。
+需要彻底撤销时，请在富途的授权管理中撤销 CW 看板。
+当前接入美股前复权日线，最多370根；仅请求所选日期之前的日线，不获取当日未完成行情。
+这是个人本机使用，不把富途行情上传公共缓存。GitHub Pages 在线版显示入口说明，不能运行此后台。
+跨设备在线使用仍需部署独立 HTTPS 私有后台。免费额度和推广权限以富途账号实际状态为准。
+官方文档：https://open.futunn.com/api/overview/getting-started

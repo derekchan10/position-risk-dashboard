@@ -48,7 +48,7 @@ async function loadStock(){
  try{
   await listReady;
   const symbol=$('stock-symbol').value.trim().toUpperCase();if(!/^[A-Z0-9.^=-]{1,16}$/.test(symbol))throw Error('请输入有效股票代码。');$('stock-symbol').value=symbol;
-  const key=$('market-api-key').value.trim();
+  const key=$('market-api-key').value.trim(),requestedSource=$('market-source').value,requestedDate=$('analysis-date').value;
   if($('market-source').value==='futu'){
    if(!cloudBackend&&location.origin!=='http://localhost:8768')throw Error('富途需要本机授权服务。请在电脑运行 scripts/futu_bridge.py，再打开 http://localhost:8768。');
    const response=await fetch('/api/futu/bars?'+new URLSearchParams({symbol,date:$('analysis-date').value}));const j=await response.json();if(!response.ok)throw Error(j.error||'富途行情读取失败');market=j;
@@ -62,7 +62,7 @@ async function loadStock(){
    if(!known.includes(symbol))throw Error('该代码尚无免密钥缓存。可在“其他股票／自有数据”填写 Twelve Data 密钥或导入日线。当前支持：'+known.join('、'));
    const response=await fetch('data/'+encodeURIComponent(symbol)+'.json',{cache:'no-store'});if(!response.ok)throw Error('行情读取失败，请稍后重试。');market=await response.json();
   }
-  if($('stock-symbol').value.trim().toUpperCase()!==symbol){market=null;throw Error('股票代码已改变，请重新分析。');}
+  if($('stock-symbol').value.trim().toUpperCase()!==symbol||$('market-source').value!==requestedSource||$('analysis-date').value!==requestedDate){market=null;throw Error('代码、来源或日期已改变，请重新分析。');}
   renderAnalysis();savePlan();
  }catch(e){$('market-error').textContent=e.message;$('market-status').textContent='未生成新建议；不会用旧结果替代。';}
  finally{busy=false;$('analyze-stock').disabled=false;}

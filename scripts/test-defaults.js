@@ -18,3 +18,5 @@ console.log('PASS: initial 500/3000 defaults, immediate apply, reload persistenc
 
 // Clearing a field during editing must not collapse the result panel or show stale values.
 e.risk.value='';e.risk.listeners.input();assert.equal(e.output.hidden,false);assert.equal(e.notional.textContent,'—');assert.equal(e.margin.textContent,'—');assert.equal(e['leverage-value'].textContent,'—');e.risk.value='500';e.risk.listeners.input();assert.equal(e.output.hidden,false);assert.notEqual(e.notional.textContent,'—');
+
+assert.equal(e.cap.value,"100");store.set("position-calculator-default70-v6",JSON.stringify({cap:30}));e=boot(store);assert.equal(e.cap.value,"100","legacy percentage cannot override fixed 100% policy");

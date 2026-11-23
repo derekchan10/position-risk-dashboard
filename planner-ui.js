@@ -12,7 +12,7 @@ const rows=[0,1].map((_,i)=>{
  p.type=percent.type='number';
  p.addEventListener('blur',()=>{if(p.value!==''&&Number.isFinite(Number(p.value)))p.value=Number(p.value).toFixed(2);savePlan();});percent.readOnly=true;p.min='0';p.step='any';percent.min='0';percent.max='100';percent.step='any';
  p.setAttribute('aria-label',`第${i+1}档止盈价格`);percent.setAttribute('aria-label',`第${i+1}档卖出比例，百分比`);p.placeholder='价格';percent.placeholder='%';
- const r=text('td','—'),net=text('td','—');r.setAttribute('data-label','盈亏比 · ATR距离');net.setAttribute('data-label','本档预计净收益');for(const input of [p,percent]){const td=document.createElement('td');td.setAttribute('data-label',input===p?`第${i+1}档 · 止盈价格`:'卖出原始仓位');td.append(input);if(input===percent)td.append(text('span','%'));tr.append(td);input.addEventListener('input',()=>{if(input===p)percent.value=p.value?([40,30][i]):'';renderPlan();savePlan();});}tr.append(r,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
+ const r=text('td','—'),net=text('td','—');r.setAttribute('data-label','盈亏比');net.setAttribute('data-label','本档预计净收益');for(const input of [p,percent]){const td=document.createElement('td');td.setAttribute('data-label',input===p?`第${i+1}档 · 止盈价格`:'卖出原始仓位');td.append(input);if(input===percent)td.append(text('span','%'));tr.append(td);input.addEventListener('input',()=>{if(input===p)percent.value=p.value?([40,30][i]):'';renderPlan();savePlan();});}tr.append(r,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
 });
 function savePlan(){try{localStorage.setItem('profit-plan-week-v1',JSON.stringify({rows:rows.map(x=>({price:x.p.value,percent:x.percent.value})),symbol:$('stock-symbol').value,date:$('analysis-date').value,style:$('plan-style').value,buffer:buffer()}));}catch(e){}}
 try{const saved=JSON.parse(localStorage.getItem('profit-plan-week-v1')||'null');if(saved){if([.1,.2,.3].includes(Number(saved.buffer)))$('stop-buffer').value=String(saved.buffer);$('stock-symbol').value=saved.symbol||'NVDA';if(saved.date&&saved.date<=ny)$('analysis-date').value=saved.date;$('plan-style').value='week';}}catch(e){}
@@ -35,7 +35,7 @@ function renderSnapshot(){
   if(bars.length){
    const extreme=bars.slice(-10).reduce((a,b)=>short?(b.high>=a.high?b:a):(b.low<=a.low?b:a));
    $('snapshot-extreme').textContent=price(short?extreme.high:extreme.low)+' · '+extreme.date;
-   if(bars.length>=14){const atr=TradePlanner.wilderATR(bars);$('atr-value').textContent=`${price(atr)} 美元／股 · ${bars.at(-1).date}`;if(valid&&atr>0)distance+=' / '+f(Math.abs(s.entry-s.stop)/atr)+' ATR';}
+   if(bars.length>=14){const atr=TradePlanner.wilderATR(bars);$('atr-value').textContent=`${price(atr)} 美元／股 · ${bars.at(-1).date}`;}
   }
  }
  $('snapshot-distance').textContent=distance;
@@ -57,9 +57,9 @@ function renderPlan(){
   const raw=rows.map(x=>({price:x.p.value,percent:x.percent.value})),active=raw.filter(x=>x.price!==''||x.percent!=='');
   if(!active.length){$('plan-summary').append(text('p',analysis?'暂无合适目标，等待更好的入场位置。':'输入股票与交易价格，自动生成分批计划。'));return;}
   const result=TradePlanner.profits(s,r,raw);let n=0;
-  rows.forEach(x=>{if(x.p.value!==''||x.percent.value!==''){const a=result.rows[n++];x.r.textContent=f(a.r)+'R'+(analysis&&analysis.atr>0?' / '+f(Math.abs(a.price-s.entry)/analysis.atr)+' ATR':'');x.net.textContent=f(a.net)+' U';}});
+  rows.forEach(x=>{if(x.p.value!==''||x.percent.value!==''){const a=result.rows[n++];x.r.textContent=f(a.r)+' : 1';x.net.textContent=f(a.net)+' U';}});
   const summary=document.createElement('div');summary.className='plan-summary';
-  [`计划净收益 ${f(result.net)} U · ${f(result.netR)}R`, `卖出 ${f(result.total)}% 原始仓位 · 保留 ${f(result.remaining*100)}%`].forEach(t=>summary.append(text('div',t)));
+  [`计划净收益 ${f(result.net)} U`, `卖出 ${f(result.total)}% 原始仓位 · 保留 ${f(result.remaining*100)}%`].forEach(t=>summary.append(text('div',t)));
   summary.append(text('div',`计划减仓数量：${result.rows.map((x,i)=>'P'+(i+1)+' '+f(x.quantity)+'单位').join('；')}。`));$('plan-summary').append(summary);
  }catch(e){$('plan-trade-context').textContent='等待有效交易价格';$('plan-error').textContent=e.message;}
 }
@@ -84,15 +84,16 @@ function renderAnalysis(){
   const level=s.side==='long'?'压力':'支撑';
   $('market-status').textContent=eligible?'空间达标 · 可纳入计划':!near?'先观望 · 缺少有效目标':near.r<1.5?'暂不开仓 · 收益空间不足':'先等待 · 目标距离偏远';
   $('market-status').parentElement?.setAttribute('data-state',eligible?'ready':'wait');
-  $('market-error').textContent=eligible?`最近${level}位提供 ${f(near.r)}R 空间，达到 ≥1.5R 门槛；可按右侧计划分批止盈，仍需自行确认入场信号。`:!near?`当前价前方没有已确认的水平${level}区，暂不生成开仓计划。`:near.r<1.5?`到最近${level}位仅有 ${f(near.r)}R，低于 1.5R 门槛。等待更合适的位置，不跳过近处${level}寻找远目标。`:`最近${level}位距开仓价 ${f(near.atrDistance)} ATR，超过 ${f(maxATR)} ATR 筛选上限，暂不纳入一周交易计划。`;
+  $('market-error').textContent=eligible?`最近${level}位盈亏比 ${f(near.r)} : 1，达到 1.5 : 1 门槛；可按右侧计划分批止盈，仍需自行确认入场信号。`:!near?`当前价前方没有已确认的水平${level}区，暂不生成开仓计划。`:near.r<1.5?`到最近${level}位盈亏比仅 ${f(near.r)} : 1，低于 1.5 : 1 门槛。等待更合适的位置，不跳过近处${level}寻找远目标。`:`最近${level}位距离偏远，超过当前距离筛选上限，暂不纳入一周交易计划。`;
   const evidence=[
-   ['止损距离',`${price(risk)} 美元 · ${f(risk/analysis.atr)} ATR`],
-   [dir===1?'距近10日低点':'距近10日高点',`${price(Math.abs(s.entry-base))} 美元 · ${f(Math.abs(s.entry-base)/analysis.atr)} ATR`],
+   ['止损距离',`${price(risk)} 美元`],
+   [dir===1?'距近10日低点':'距近10日高点',`${price(Math.abs(s.entry-base))} 美元`],
    [dir===1?'最近压力区':'最近支撑区',near?`${price(near.low)}${near.high>near.low?' ～ '+price(near.high):''}`:'暂无已确认水平区'],
    ['水平区依据',near?near.labels.slice(0,2).join('；'):'数据不足'],
-   ['最近水平区盈亏比',near?`${f(near.r)}R / 要求 ≥ 1.5R`:'无法计算'],
-   ['1.5R所需价格',price(s.entry+dir*1.5*risk)]
+   ['最近水平区盈亏比',near?`${f(near.r)} : 1 / 要求 ≥ 1.5 : 1`:'无法计算'],
+   ['盈亏比1.5 : 1所需价格',price(s.entry+dir*1.5*risk)]
   ];
+  $('atr-distances').replaceChildren(text('p',`止损距离 ${f(risk/analysis.atr)} ATR；距近期${dir===1?'低':'高'}点 ${f(Math.abs(s.entry-base)/analysis.atr)} ATR；目标最远 ${f(maxATR)} ATR。`),...analysis.targets.map((z,i)=>text('p',`第${i+1}档目标距离 ${f(z.atrDistance)} ATR`)));
   $('decision-evidence').replaceChildren(...evidence.map(([label,value])=>{const row=text('div','');row.className='evidence-row';row.append(text('span',label),text('strong',value));return row;}));
   $('target-table').hidden=!eligible;$('profit-note').hidden=!eligible;
   if(gap>5)$('market-error').textContent+=' 日线数据距分析日超过5天，请核对数据日期。';
@@ -180,6 +181,10 @@ window.addEventListener('trade-input-change',()=>{
 });
 
 
+$('ratio-help-toggle').addEventListener('click',()=>{
+ const expanded=$('ratio-help-toggle').getAttribute('aria-expanded')==='true';
+ $('ratio-help-toggle').setAttribute('aria-expanded',String(!expanded));$('ratio-help').hidden=expanded;
+});
 $('atr-help-toggle').addEventListener('click',()=>{
  const expanded=$('atr-help-toggle').getAttribute('aria-expanded')==='true';
  $('atr-help-toggle').setAttribute('aria-expanded',String(!expanded));$('atr-help').hidden=expanded;

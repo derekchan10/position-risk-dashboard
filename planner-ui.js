@@ -19,7 +19,7 @@ function current(){const s=window.PositionRisk.read();return {s,r:window.Positio
 function renderSnapshot(){
  const s=window.PositionRisk.read(),short=s.side==='short';
  $('snapshot-extreme-label').textContent=short?'近10日高点':'近10日低点';
- $('snapshot-price').textContent='—';$('snapshot-extreme').textContent='—';
+ $('snapshot-price').textContent='—';$('snapshot-extreme').textContent='—';$('atr-value').textContent='日线 ATR(14)：等待行情';
  $('snapshot-time').textContent=authorized===false?'请先授权富途行情':'等待股票行情';
  const valid=Number.isFinite(s.entry)&&s.entry>0&&Number.isFinite(s.stop)&&s.stop>0;
  let distance=valid?f(Math.abs(s.entry-s.stop)/s.entry*100)+'%':'—';
@@ -34,7 +34,7 @@ function renderSnapshot(){
   if(bars.length){
    const extreme=bars.slice(-10).reduce((a,b)=>short?(b.high>=a.high?b:a):(b.low<=a.low?b:a));
    $('snapshot-extreme').textContent=price(short?extreme.high:extreme.low)+' · '+extreme.date;
-   if(valid&&bars.length>=14){const atr=TradePlanner.wilderATR(bars);if(atr>0)distance+=' / '+f(Math.abs(s.entry-s.stop)/atr)+' ATR';}
+   if(bars.length>=14){const atr=TradePlanner.wilderATR(bars);$('atr-value').textContent=`日线 ATR(14) ${price(atr)} USD · 截至 ${bars.at(-1).date} · Wilder`;if(valid&&atr>0)distance+=' / '+f(Math.abs(s.entry-s.stop)/atr)+' ATR';}
   }
  }
  $('snapshot-distance').textContent=distance;
@@ -70,7 +70,7 @@ function renderAnalysis(){
   signature=JSON.stringify([s.entry,s.stop,s.side,$('analysis-date').value]);
   $('market-results').hidden=false;
   $('zones-list').replaceChildren(...analysis.zones.slice(0,12).map(z=>{const div=document.createElement('div');div.className='zone-row';div.append(text('div',`${price(z.low)}${z.high>z.low?'～'+price(z.high):''} · ${f(z.r)}:1 · ${f(z.atrDistance)} ATR`),text('small',z.labels.join('；')));return div;}));
-  $('atr-value').textContent=`日线 ATR(14，Wilder) ${price(analysis.atr)} 美元／股 · 截至 ${analysis.lastDate}，前复权、仅完整交易日。`;
+
   $('target-candidates').replaceChildren(...(analysis.targets.length?analysis.targets.map((z,i)=>{const div=document.createElement('div');div.className='zone-row';div.append(text('strong',`候选${i+1}：${price(z.target)} · 盈亏比 ${f(z.r)}:1 · ${f(z.atrDistance)} ATR`),text('small',z.labels.join('；')));return div;}):[text('p','暂无符合条件的水平候选。可以查看全部水平区。')]));
   adoptTargets();
   $('market-meta').replaceChildren(text('span',`数据：${market.symbol} / ${market.currency}；最后采用 ${analysis.lastDate}，${analysis.count}根日线。获取时间 ${market.fetchedAt||'未提供'}。${market.quote?' 报价时间：'+(market.quote.time?new Date(market.quote.time).toISOString():market.quote.date||'未提供')+'；'+market.quote.session:''}`));

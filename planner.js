@@ -42,12 +42,13 @@ function trailing(side,entry,initialStop,atr,extreme,currentStop,multiple){
  const reference=dir===1?Math.max(initialStop,currentStop,raw):Math.min(initialStop,currentStop,raw);
  return {reference,raw,distance:multiple*atr};
 }
-function priceDefaults(data,side){
+function priceDefaults(data,side,buffer=.1){
+ if(![.1,.2,.3].includes(buffer))throw Error('请选择有效的ATR缓冲。');
  const entry=Number(data.quote?.price);if(!Number.isFinite(entry)||entry<=0)throw Error('缺少有效最新报价。');
  const bars=data.bars.slice().sort((a,b)=>a.date.localeCompare(b.date));if(bars.length<14)throw Error('日线不足14根，无法生成止损参考。');
  const recent=bars.slice(-10),dir=side==='short'?-1:1;
  const base=dir===1?Math.min(...recent.map(b=>b.low)):Math.max(...recent.map(b=>b.high));
- const atr=wilderATR(bars),stop=Math.round((base-dir*.1*atr)*100)/100;
+ const atr=wilderATR(bars),stop=Math.round((base-dir*buffer*atr)*100)/100;
  return {entry,stop:stop>0&&dir*(entry-stop)>0?stop:null,base,atr,from:recent[0].date,to:recent.at(-1).date};
 }
 function weekTargets(analysis,maxATR){

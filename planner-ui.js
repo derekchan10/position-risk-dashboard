@@ -3,6 +3,7 @@
 const $=id=>document.getElementById(id),f=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:2});
 let market=null,analysis=null,signature='',busy=false,cloudBackend=false,backendReady=Promise.resolve(),requestVersion=0,controller=null,autoTimer=null,priceBinding=null,authorized=null,pendingBuffer=false;
 const price=n=>Number(n).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});
+let previousSide=window.PositionRisk.read().side;
 const buffer=()=>Number($('stop-buffer').value)||.1;
 const now=new Date(),ny=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 $('analysis-date').value=ny;$('analysis-date').max=ny;
@@ -114,7 +115,7 @@ async function loadStock(options={}){
  busy=true;$('market-error').textContent='';$('market-status').textContent=autoPrices?'正在获取新股票报价与近期低点…':'正在读取日线…';market=null;analysis=null;adoptTargets();$('market-results').hidden=true;$('target-table').hidden=true;$('profit-note').hidden=true;
  const symbol=$('stock-symbol').value.trim().toUpperCase(),entryBefore=$('entry').value,stopBefore=$('stop').value,sideBefore=window.PositionRisk.read().side;
  try{
-  if(!autoPrices)current();await backendReady;
+  if(!autoPrices&&!pendingBuffer)current();await backendReady;
   if(!/^[A-Z][A-Z0-9.-]{0,14}$/.test(symbol))throw Error('请输入有效美股代码。');$('stock-symbol').value=symbol;
   if(autoPrices)$('analysis-date').value=ny;
   const requestedDate=$('analysis-date').value;
@@ -122,12 +123,13 @@ async function loadStock(options={}){
   const response=await fetch('/api/futu/bars?'+new URLSearchParams({symbol,date:requestedDate,quote:'1'}),{signal:controller.signal});const j=await response.json();
   if(requestId!==requestVersion)return;
   if(!response.ok){if(j.needsAuth)await futuStatus();throw Error(j.error||'富途行情读取失败');}
-  if($('stock-symbol').value.trim().toUpperCase()!==symbol||$('analysis-date').value!==requestedDate||window.PositionRisk.read().side!==sideBefore)throw Error('股票、方向或日期已改变，请重新生成。');
+  if($('stock-symbol').value.trim().toUpperCase()!==symbol||$('analysis-date').value!==requestedDate)throw Error('股票或日期已改变，请重新生成。');
+  const responseSide=window.PositionRisk.read().side;
   if(autoPrices){
    if($('entry').value!==entryBefore||$('stop').value!==stopBefore)throw Error('你已手动修改价格，本次自动填价已取消，请重新生成。');
-   const defaults=TradePlanner.priceDefaults(j,sideBefore,buffer());$('entry').value=Number(defaults.entry).toFixed(2);$('stop').value=defaults.stop===null?'':Number(defaults.stop).toFixed(2);priceBinding=symbol;
+   const defaults=TradePlanner.priceDefaults(j,responseSide,buffer());$('entry').value=Number(defaults.entry).toFixed(2);$('stop').value=defaults.stop===null?'':Number(defaults.stop).toFixed(2);priceBinding=symbol;
    const qt=j.quote?.time?new Date(j.quote.time).toLocaleString('zh-CN',{timeZone:'America/New_York'})+' 美东':j.quote?.date||'时间未提供';
-   $('auto-price-note').textContent=`止损参考：近10日${sideBefore==='short'?'高点＋':'低点－'}${buffer()} ATR${buffer()===.1?'（较小缓冲）':''}，可手动调整。`;$('auto-price-note').title=`报价时间 ${qt}；近期极值 ${price(defaults.base)}；区间 ${defaults.from} 至 ${defaults.to}`;
+   $('auto-price-note').textContent=`止损参考：近10日${responseSide==='short'?'高点＋':'低点－'}${buffer()} ATR${buffer()===.1?'（较小缓冲）':''}，可手动调整。`;$('auto-price-note').title=`报价时间 ${qt}；近期极值 ${price(defaults.base)}；区间 ${defaults.from} 至 ${defaults.to}`;
    refreshSizing();
    if(defaults.stop===null)throw Error('近期极值不在正确止损方向，请根据结构手动填写止损；不会沿用旧股票价格。');
   }
@@ -178,6 +180,14 @@ $('stop-buffer').addEventListener('change',()=>{savePlan();applyBuffer();});
 $('max-target-atr').addEventListener('change',renderAnalysis);
 $('analysis-date').addEventListener('change',()=>{savePlan();return loadStock();});
 window.addEventListener('trade-input-change',()=>{
+ const side=window.PositionRisk.read().side;
+ if(side!==previousSide){
+  previousSide=side;
+  if(market){applyBuffer();return;}
+  pendingBuffer=true;
+  if(!busy)loadStock();
+  return;
+ }
  renderPlan();authorizationHint();
  if(market){renderAnalysis();return;}
  if(!busy&&$('entry').value&&$('stop').value){clearTimeout(autoTimer);autoTimer=setTimeout(()=>loadStock(),600);}

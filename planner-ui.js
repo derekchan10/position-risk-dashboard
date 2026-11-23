@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id),f=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:2});
-let market=null,analysis=null,known=[],signature='',busy=false;
+let market=null,analysis=null,known=[],signature='',busy=false,listReady=Promise.resolve();
 const now=new Date(),ny=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 $('analysis-date').value=ny;$('analysis-date').max=ny;
 function text(tag,t){const e=document.createElement(tag);e.textContent=t;return e;}
@@ -39,13 +39,14 @@ function renderAnalysis(){
   $('market-meta').replaceChildren(text('span',`数据：${market.symbol} / ${market.currency}；最后采用 ${analysis.lastDate}，${analysis.count}根日线。获取时间 ${market.fetchedAt||'导入文件未提供'}。`));
   if(market.sourceUrl){const a=document.createElement('a');a.textContent=' 查看行情来源';a.href=market.sourceUrl.startsWith('https://')?market.sourceUrl:'https://finance.yahoo.com/';a.target='_blank';a.rel='noopener noreferrer';$('market-meta').append(a);}
   const gap=(Date.parse($('analysis-date').value)-Date.parse(analysis.lastDate))/86400000;
-  $('market-status').textContent=`${market.symbol}：找到 ${analysis.targets.length}档至少1R的候选${s.side==='long'?'压力':'支撑'}区。`+(gap>5?' 注意：数据距分析日期超过5天，请刷新或导入较新数据。':'');
+  $('market-status').textContent=`${market.symbol}：找到 ${analysis.targets.length}档至少1R的候选${s.side==='long'?'压力':'支撑'}区。`+(gap>5?' 注意：数据距分析日期超过5天，请刷新或导入较新数据。':'')+(analysis.targets[0]?.r>4?' 最近候选距离超过4R，可能不适合短期反弹；不要为凑目标延长持仓。':'');
   $('market-error').textContent='';
  }catch(e){analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;$('market-error').textContent=e.message;}
 }
 async function loadStock(){
  if(busy)return;busy=true;$('analyze-stock').disabled=true;$('market-error').textContent='';$('market-status').textContent='正在读取日线…';market=null;analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;
  try{
+  await listReady;
   const symbol=$('stock-symbol').value.trim().toUpperCase();if(!/^[A-Z0-9.^=-]{1,16}$/.test(symbol))throw Error('请输入有效股票代码。');$('stock-symbol').value=symbol;
   const key=$('market-api-key').value.trim();
   if(key){
@@ -58,6 +59,7 @@ async function loadStock(){
    if(!known.includes(symbol))throw Error('该代码尚无免密钥缓存。可在“其他股票／自有数据”填写 Twelve Data 密钥或导入日线。当前支持：'+known.join('、'));
    const response=await fetch('data/'+encodeURIComponent(symbol)+'.json',{cache:'no-store'});if(!response.ok)throw Error('行情读取失败，请稍后重试。');market=await response.json();
   }
+  if($('stock-symbol').value.trim().toUpperCase()!==symbol){market=null;throw Error('股票代码已改变，请重新分析。');}
   renderAnalysis();savePlan();
  }catch(e){$('market-error').textContent=e.message;$('market-status').textContent='未生成新建议；不会用旧结果替代。';}
  finally{busy=false;$('analyze-stock').disabled=false;}
@@ -73,6 +75,6 @@ window.addEventListener('trade-input-change',()=>{renderPlan();renderAnalysis();
 $('market-file').addEventListener('change',async e=>{try{const file=e.target.files[0];if(!file)return;if(file.size>2e6)throw Error('文件请小于2MB。');const j=JSON.parse(await file.text());if(!Array.isArray(j.bars)||!j.symbol)throw Error('需要包含symbol及bars字段。');market=j;$('stock-symbol').value=j.symbol;renderAnalysis();}catch(e){market=null;analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;$('market-error').textContent=e.message;}});
 function view(planner){$('sizing-view').hidden=planner;$('planner-view').hidden=!planner;$('tab-sizing').setAttribute('aria-pressed',String(!planner));$('tab-planner').setAttribute('aria-pressed',String(planner));if(planner){renderPlan();if(!market&&!busy)loadStock();}}
 $('tab-sizing').addEventListener('click',()=>view(false));$('tab-planner').addEventListener('click',()=>view(true));
-fetch('data/symbols.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error();return r.json();}).then(list=>{known=list;$('stock-list').replaceChildren(...list.map(s=>{const o=document.createElement('option');o.value=s;return o;}));}).catch(()=>{$('market-status').textContent='股票缓存列表暂不可用，可使用自有行情入口。';});
+listReady=fetch('data/symbols.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error();return r.json();}).then(list=>{known=list;$('stock-list').replaceChildren(...list.map(s=>{const o=document.createElement('option');o.value=s;return o;}));}).catch(()=>{$('market-status').textContent='股票缓存列表暂不可用，可使用自有行情入口。';});
 renderPlan();
 })();

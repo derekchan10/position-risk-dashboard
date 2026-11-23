@@ -15,3 +15,6 @@ e.risk.value='100';e.risk.listeners.input();e=boot(store);assert.equal(Number(e.
 e['default-margin'].value='';e['default-margin'].listeners.change();assert.equal(e.marginLimit.value,'');e=boot(store);assert.equal(e.marginLimit.value,'');
 e['default-risk'].value='0';e['default-risk'].listeners.change();assert(e['defaults-error'].textContent);assert.equal(Number(e.risk.value),600);
 console.log('PASS: initial 500/3000 defaults, immediate apply, reload persistence, temporary edits, unlimited margin and invalid inputs');
+
+// Clearing a field during editing must not collapse the result panel or show stale values.
+e.risk.value='';e.risk.listeners.input();assert.equal(e.output.hidden,false);assert.equal(e.notional.textContent,'—');assert.equal(e.margin.textContent,'—');assert.equal(e['leverage-value'].textContent,'—');e.risk.value='500';e.risk.listeners.input();assert.equal(e.output.hidden,false);assert.notEqual(e.notional.textContent,'—');

@@ -58,7 +58,7 @@ function update(save){
    if(r.loss/m>s.cap/100)checks.push('超过损失比例上限');
    [fmt(l)+'倍',fmt(m)+' U',pct(r.loss/m),checks.join('；')||'通过预算，未核验强平'].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.append(td);});return tr;
   }));
- }catch(e){el('error').textContent=e.message;el('output').hidden=true;el('advanced-note').textContent='请先修正输入。';el('rows').replaceChildren();}
+ }catch(e){el('error').textContent=e.message;el('output').hidden=false;for(const id of ['notional','margin','leverage-value'])el(id).textContent='—';el('risk-note').textContent='等待有效参数，暂不显示预算结果。';el('reference-status').textContent='';el('warning').textContent='';el('advanced-note').textContent='请先修正输入。';el('rows').replaceChildren();}
  window.dispatchEvent(new Event('trade-input-change'));
  if(save){try{localStorage.setItem('position-calculator-default70-v6',JSON.stringify(Object.fromEntries(ids.map(id=>[id,value(id)]))));}catch(e){}}
 }

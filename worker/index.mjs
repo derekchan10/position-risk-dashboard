@@ -18,8 +18,8 @@ export function apiFailure(http,j={}){
  const e=new Error(message+'（'+detail+'）');e.authExpired=expired;e.http=http;e.upstreamCode=Number.isFinite(code)?code:null;e.upstreamKind=safeKind;return e;
 }
 async function upstream(path,body,token){
- const headers={Accept:'application/json'};if(token)headers.Authorization='Bearer '+token;if(body)headers['Content-Type']=path.endsWith('/register')?'application/json':'application/x-www-form-urlencoded';
- const r=await fetch(FUTU+path,{method:body?'POST':'GET',headers,body:body?(path.endsWith('/register')?JSON.stringify(body):new URLSearchParams(body)):undefined,signal:AbortSignal.timeout(25000)});
+ const headers={Accept:'application/json'};if(token)headers.Authorization='Bearer '+token;if(body)headers['Content-Type']=(path.endsWith('/register')||path.startsWith('/api/'))?'application/json':'application/x-www-form-urlencoded';
+ const r=await fetch(FUTU+path,{method:body?'POST':'GET',headers,body:body?((path.endsWith('/register')||path.startsWith('/api/'))?JSON.stringify(body):new URLSearchParams(body)):undefined,signal:AbortSignal.timeout(25000)});
  let j;try{j=await r.json();}catch{throw apiFailure(r.status);}
  if(!r.ok||j.error||(j.ret_code!==undefined&&Number(j.ret_code)!==0))throw apiFailure(r.status,j);return j;
 }
@@ -63,12 +63,20 @@ export default {async fetch(request,env){
    const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
    if(!/^[A-Z][A-Z0-9.-]{0,14}$/.test(symbol)||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))||new Date(date).toISOString().slice(0,10)!==date||date>today)throw Error('请输入有效美股代码与历史交易日期。');
    // Per-session request throttle, never share one user's Futu credentials with other visitors.
-   const last=await env.SESSIONS.get('throttle:'+sid);if(last&&Date.now()-Number(last)<5000)return json({error:'请间隔5秒再查询。'},429);await env.SESSIONS.put('throttle:'+sid,String(Date.now()),{expirationTtl:60});
+   const last=await env.SESSIONS.get('throttle:'+sid+':'+symbol);if(last&&Date.now()-Number(last)<5000)return json({error:'请间隔5秒再查询。'},429);await env.SESSIONS.put('throttle:'+sid+':'+symbol,String(Date.now()),{expirationTtl:60});
    if(Date.now()>=session.expires)await refreshSession(env,sid,session);
    const end=new Date(Date.parse(date)-86400000).toISOString().slice(0,10);
    const resource='/api/v1.0/quote/US.'+symbol+'/history-kline?'+new URLSearchParams({end,ktype:'2',autype:'1',num:'370',extended_time:'0'});
    let data;try{data=await upstream(resource,null,session.token.access_token);}catch(e){if(!e.authExpired)throw e;await refreshSession(env,sid,session);data=await upstream(resource,null,session.token.access_token);}
-   return json(normalize(data,symbol,date));
+   const result=normalize(data,symbol,date);
+   if(url.searchParams.get('quote')==='1'){
+    const resource='/api/v1.0/quote/stock-quote';let quote;
+    try{quote=await upstream(resource,{code_list:['US.'+symbol]},session.token.access_token);}catch(e){if(!e.authExpired)throw e;await refreshSession(env,sid,session);quote=await upstream(resource,{code_list:['US.'+symbol]},session.token.access_token);}
+    const item=quote.data?.quote_list?.find(x=>x.code==='US.'+symbol);
+    if(!item||!Number.isFinite(Number(item.last_price))||Number(item.last_price)<=0)throw Error('富途未返回有效最新成交价，请手动填写价格。');
+    result.quote={price:Number(item.last_price),time:Number(item.data_time)||null,date:item.data_date||null,session:'常规时段最新成交价',fetchedAt:new Date().toISOString()};
+   }
+   return json(result);
   }
   return json({error:'Not found'},404);
  }catch(e){return json({error:e.message||'后台请求失败，请重新连接。',needsAuth:!!e.needsAuth,upstreamCode:e.upstreamCode??null,upstreamKind:e.upstreamKind||null},e.needsAuth?401:400);}

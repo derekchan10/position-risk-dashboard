@@ -35,6 +35,15 @@ function trailing(side,entry,initialStop,atr,extreme,currentStop,multiple){
  const reference=dir===1?Math.max(initialStop,currentStop,raw):Math.min(initialStop,currentStop,raw);
  return {reference,raw,distance:multiple*atr};
 }
+function priceDefaults(data,side){
+ const entry=Number(data.quote?.price);if(!Number.isFinite(entry)||entry<=0)throw Error('缺少有效最新报价。');
+ const bars=data.bars.slice().sort((a,b)=>a.date.localeCompare(b.date));if(bars.length<14)throw Error('日线不足14根，无法生成止损参考。');
+ const recent=bars.slice(-10),dir=side==='short'?-1:1;
+ const base=dir===1?Math.min(...recent.map(b=>b.low)):Math.max(...recent.map(b=>b.high));
+ const trs=bars.slice(-14).map((b,i)=>{const p=bars[bars.length-14+i-1]?.close??b.close;return Math.max(b.high-b.low,Math.abs(b.high-p),Math.abs(b.low-p));});
+ const atr=trs.reduce((a,b)=>a+b,0)/14,stop=Math.round((base-dir*.1*atr)*100)/100;
+ return {entry,stop:stop>0&&dir*(entry-stop)>0?stop:null,base,atr,from:recent[0].date,to:recent.at(-1).date};
+}
 function weekTargets(analysis,maxATR){
  const near=analysis.zones[0];if(!near)return {targets:[],reason:'暂无前方水平区，不生成固定止盈。'};
  if(near.r<1.5)return {targets:[],reason:'最近水平区不足1.5R，按一周规则放弃这次开仓；不跳过近处压力寻找远目标。'};
@@ -72,5 +81,5 @@ function profits(s,position,rows){
  const remaining=Math.max(0,1-total/100),remainingLoss=position.loss*remaining;
  return {rows:parsed,total,net:cumulative,remaining,remainingQuantity:position.quantity*remaining,netIfStop:cumulative-remainingLoss,netR:cumulative/position.loss};
 }
-const api={analyze,profits,trailing,weekTargets,structureStop,settlement};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
+const api={analyze,profits,trailing,weekTargets,structureStop,settlement,priceDefaults};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TradePlanner=api;
 })(typeof window==='undefined'?{}:window);

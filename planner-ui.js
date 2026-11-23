@@ -12,18 +12,18 @@ const rows=[0,1].map((_,i)=>{
  const r=text('td','—'),net=text('td','—');for(const input of [p,percent]){const td=document.createElement('td');td.append(input);tr.append(td);input.addEventListener('input',()=>{if(input===p)percent.value=p.value?([40,30][i]):'';renderPlan();savePlan();});}tr.append(r,net);$('take-profit-rows').append(tr);return {p,percent,r,net};
 });
 function savePlan(){try{localStorage.setItem('profit-plan-week-v1',JSON.stringify({rows:rows.map(x=>({price:x.p.value,percent:x.percent.value})),symbol:$('stock-symbol').value,date:$('analysis-date').value,style:$('plan-style').value}));}catch(e){}}
-try{const saved=JSON.parse(localStorage.getItem('profit-plan-week-v1')||'null');if(saved){saved.rows?.slice(0,2).forEach((x,i)=>{rows[i].p.value=x.price;rows[i].percent.value=x.percent;});$('stock-symbol').value=saved.symbol||'NVDA';if(saved.date&&saved.date<=ny)$('analysis-date').value=saved.date;$('plan-style').value='week';}}catch(e){}
+try{const saved=JSON.parse(localStorage.getItem('profit-plan-week-v1')||'null');if(saved){$('stock-symbol').value=saved.symbol||'NVDA';if(saved.date&&saved.date<=ny)$('analysis-date').value=saved.date;$('plan-style').value='week';}}catch(e){}
 function current(){const s=window.PositionRisk.read();return {s,r:window.PositionRisk.calculate(s)};}
 function renderPlan(){
  $('plan-error').textContent='';$('plan-summary').replaceChildren();rows.forEach(x=>{x.r.textContent='—';x.net.textContent='—';});
  try{
   const {s,r}=current();$('plan-trade-context').textContent=`${s.side==='long'?'做多':'做空'} ${f(s.entry)} / 止损 ${f(s.stop)}`;
   const raw=rows.map(x=>({price:x.p.value,percent:x.percent.value})),active=raw.filter(x=>x.price!==''||x.percent!=='');
-  if(!active.length){$('plan-summary').append(text('p','先分析股票，再采用候选价位；也可以自行填写。'));return;}
+  if(!active.length){$('plan-summary').append(text('p','填写交易参数，点击生成即可获取止盈建议。'));return;}
   const result=TradePlanner.profits(s,r,raw);let n=0;
   rows.forEach(x=>{if(x.p.value!==''||x.percent.value!==''){const a=result.rows[n++];x.r.textContent=f(a.r)+':1'+(analysis&&analysis.atr>0?' / '+f(Math.abs(a.price-s.entry)/analysis.atr)+' ATR':'');x.net.textContent=f(a.net)+' U';}});
   const summary=document.createElement('div');summary.className='plan-summary';
-  [`各档均成交后，计划兑现 ${f(result.total)}% 原始仓位`, `累计预计净收益 ${f(result.net)} U（${f(result.netR)}倍本笔总风险预算）`, `剩余 ${f(result.remaining*100)}% 仓位，约 ${f(result.remainingQuantity)} 基础资产单位`].forEach(t=>summary.append(text('div',t)));
+  [`两档预计净收益 ${f(result.net)} U · ${f(result.netR)}R`, `兑现 ${f(result.total)}% · 剩余 ${f(result.remaining*100)}%（${f(result.remainingQuantity)}单位）`].forEach(t=>summary.append(text('div',t)));
   summary.append(text('div',`计划减仓数量：${result.rows.map((x,i)=>'P'+(i+1)+' '+f(x.quantity)+'单位').join('；')}。`));$('plan-summary').append(summary);
  }catch(e){$('plan-error').textContent=e.message;}
 }
@@ -33,22 +33,23 @@ function renderAnalysis(){
   const {s}=current();analysis=TradePlanner.analyze(market,$('analysis-date').value,s.entry,s.stop,s.side);
   const maxATR=Number($('max-target-atr').value),week=TradePlanner.weekTargets(analysis,maxATR);analysis.targets=week.targets;analysis.weekReason=week.reason;
   signature=JSON.stringify([s.entry,s.stop,s.side,$('analysis-date').value]);
-  $('market-results').hidden=false;$('apply-targets').disabled=!analysis.targets.length;
+  $('market-results').hidden=false;
   $('ma-values').replaceChildren(...analysis.mas.map(m=>{const div=document.createElement('div');div.className='ma-item';div.append(text('span','MA'+m.n+'（SMA）'),text('strong',m.value===null?'数据不足':f(m.value)));return div;}));
   $('zones-list').replaceChildren(...analysis.zones.slice(0,12).map(z=>{const div=document.createElement('div');div.className='zone-row';div.append(text('div',`${f(z.low)}${z.high>z.low?'～'+f(z.high):''} · ${f(z.r)}:1 · ${f(z.atrDistance)} ATR${z.confluence?' · 均线与水平区重合':''}`),text('small',z.labels.join('；')));return div;}));
   $('atr-value').textContent=`ATR(14) ${f(analysis.atr)} 美元／股 · 开仓前日线波动快照，不预测涨跌。`;
   $('target-candidates').replaceChildren(...(analysis.targets.length?analysis.targets.map((z,i)=>{const div=document.createElement('div');div.className='zone-row';div.append(text('strong',`候选${i+1}：${f(z.target)} · 盈亏比 ${f(z.r)}:1 · ${f(z.atrDistance)} ATR`),text('small',z.labels.join('；')));return div;}):[text('p','暂无符合条件的水平候选。可以查看全部水平区；不会用远处均线补齐。')]));
-  renderPlan();
+  adoptTargets();
   $('market-meta').replaceChildren(text('span',`数据：${market.symbol} / ${market.currency}；最后采用 ${analysis.lastDate}，${analysis.count}根日线。获取时间 ${market.fetchedAt||'导入文件未提供'}。`));
   if(market.sourceUrl){const a=document.createElement('a');a.textContent=' 查看行情来源';a.href=market.sourceUrl.startsWith('https://')?market.sourceUrl:'https://finance.yahoo.com/';a.target='_blank';a.rel='noopener noreferrer';$('market-meta').append(a);}
   const gap=(Date.parse($('analysis-date').value)-Date.parse(analysis.lastDate))/86400000;
   $('market-status').textContent=`${market.symbol}：找到 ${analysis.targets.length}档至少1.5R、${f(maxATR)} ATR以内的水平候选${s.side==='long'?'压力':'支撑'}区。`+(gap>5?' 注意：数据距分析日期超过5天，请刷新或导入较新数据。':'')+(analysis.targets[0]?.r>4?' 最近候选距离超过4R，可能不适合短期反弹；不要为凑目标延长持仓。':'');
   $('market-error').textContent=analysis.weekReason;
- }catch(e){analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;$('market-error').textContent=e.message;}
+ }catch(e){analysis=null;adoptTargets();$('market-results').hidden=true;$('market-error').textContent=e.message;}
 }
 async function loadStock(){
- if(busy)return;busy=true;$('analyze-stock').disabled=true;$('market-error').textContent='';$('market-status').textContent='正在读取日线…';market=null;analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;
+ if(busy)return;busy=true;$('analyze-stock').disabled=true;$('market-error').textContent='';$('market-status').textContent='正在读取日线…';market=null;analysis=null;adoptTargets();$('market-results').hidden=true;
  try{
+  current();
   await backendReady;
   const symbol=$('stock-symbol').value.trim().toUpperCase();if(!/^[A-Z0-9.^=-]{1,16}$/.test(symbol))throw Error('请输入有效股票代码。');$('stock-symbol').value=symbol;
   const requestedDate=$('analysis-date').value;
@@ -59,9 +60,9 @@ async function loadStock(){
  }catch(e){$('market-error').textContent=e.message;$('market-status').textContent='未生成新建议；不会用旧结果替代。';}
  finally{busy=false;$('analyze-stock').disabled=false;}
 }
-$('apply-targets').addEventListener('click',()=>{
- try{const {s}=current();if(!analysis||signature!==JSON.stringify([s.entry,s.stop,s.side,$('analysis-date').value]))throw Error('交易参数已变化，请重新分析。');const weights=[40,30];rows.forEach((x,i)=>{x.p.value=analysis.targets[i]?analysis.targets[i].target.toFixed(2):'';x.percent.value=analysis.targets[i]?weights[i]:'';});renderPlan();savePlan();}catch(e){$('plan-error').textContent=e.message;}
-});
+function adoptTargets(){
+ const weights=[40,30];rows.forEach((x,i)=>{x.p.value=analysis?.targets[i]?analysis.targets[i].target.toFixed(2):'';x.percent.value=analysis?.targets[i]?weights[i]:'';});renderPlan();savePlan();
+}
 async function futuStatus(autoSelect=false){
  const local=location.origin==='http://localhost:8768'||location.hostname.endsWith('.workers.dev');
  $('futu-connect').hidden=!local;$('futu-disconnect').hidden=true;
@@ -70,10 +71,10 @@ async function futuStatus(autoSelect=false){
 }
 
 $('futu-connect').addEventListener('click',async()=>{try{$('futu-connect').disabled=true;const r=await fetch('/auth/start',{method:'POST'}),j=await r.json();if(!r.ok)throw Error(j.error);const url=new URL(j.url);if(url.origin!=='https://webapi.futunn.com')throw Error('授权地址无效');location.assign(url.href);}catch(e){$('futu-status').textContent=e.message;$('futu-connect').disabled=false;}});
-$('futu-disconnect').addEventListener('click',async()=>{const r=await fetch('/auth/disconnect',{method:'POST'});if(r.ok){market=null;analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;await futuStatus();}});
+$('futu-disconnect').addEventListener('click',async()=>{const r=await fetch('/auth/disconnect',{method:'POST'});if(r.ok){market=null;analysis=null;adoptTargets();$('market-results').hidden=true;await futuStatus();}});
 backendReady=futuStatus(true);
 $('analyze-stock').addEventListener('click',loadStock);
-$('stock-symbol').addEventListener('input',()=>{market=null;analysis=null;$('market-results').hidden=true;$('apply-targets').disabled=true;$('market-status').textContent='代码已更改，请点击分析。';});
+$('stock-symbol').addEventListener('input',()=>{market=null;analysis=null;adoptTargets();$('market-results').hidden=true;$('market-status').textContent='代码已更改，请点击分析。';});
 $('max-target-atr').addEventListener('change',renderAnalysis);
 $('analysis-date').addEventListener('change',()=>{renderAnalysis();savePlan();});
 window.addEventListener('trade-input-change',()=>{renderPlan();renderAnalysis();});

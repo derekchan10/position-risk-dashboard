@@ -34,3 +34,18 @@ GitHub Pages 选择 Deploy from a branch，分支 main，目录 / (root)。
 这是个人本机使用，不把富途行情上传公共缓存。GitHub Pages 在线版显示入口说明，不能运行此后台。
 跨设备在线使用仍需部署独立 HTTPS 私有后台。免费额度和推广权限以富途账号实际状态为准。
 官方文档：https://open.futunn.com/api/overview/getting-started
+
+## Cloudflare Worker 线上富途入口
+
+`worker/index.mjs` 提供同源 HTTPS 看板、OAuth PKCE、日线接口。
+每个浏览器独立授权，不共享个人富途凭证。令牌以 AES-GCM 加密保存在 KV，
+浏览器只持有 Secure/HttpOnly/SameSite=Lax 会话 Cookie。关闭 Worker 请求日志。
+只读 `quote:read`；账户及交易权限被拒绝。每次最多370根前复权日线。
+
+部署准备：`sh scripts/package-worker.sh`；创建 KV 并替换 wrangler.jsonc 中的 ID；
+通过 `wrangler secret put TOKEN_ENCRYPTION_KEY` 设置随机32字节密钥（base64url），
+然后 `wrangler deploy -c worker/wrangler.jsonc`。
+勿将密钥、Token 或 `.dev.vars` 提交到 Git。
+Worker 同时提供 HTTPS 看板入口，Pages 保持原入口，通过链接进入线上富途版。
+首次在线使用需要重新在富途授权；本机授权不会自动上传。
+测试：`node scripts/test-worker.mjs`。免费配额用尽会停止服务，不自动升级付费。

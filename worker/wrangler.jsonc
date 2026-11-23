@@ -1,0 +1,9 @@
+{
+  "name": "cw-futu-backend",
+  "main": "index.mjs",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "assets": {"directory": "../_worker-site", "binding": "ASSETS", "run_worker_first": ["/auth/*", "/api/*"]},
+  "observability": {"enabled": false},
+  "kv_namespaces": [{"binding": "SESSIONS", "id": "REPLACE_AFTER_CREATE"}]
+}

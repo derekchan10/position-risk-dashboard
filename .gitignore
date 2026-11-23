@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+
+_worker-site/
+worker/.wrangler/
+worker/.dev.vars

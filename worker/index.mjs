@@ -28,7 +28,7 @@ async function refreshSession(env,sid,session){
  catch(e){if(e.authExpired){await env.SESSIONS.delete('session:'+sid);e.needsAuth=true;}throw e;}
 }
 
-function json(obj,status=200,extra={}){return new Response(JSON.stringify(obj),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',...extra}});}
+function json(obj,status=200,extra={}){return new Response(JSON.stringify(obj),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow, noarchive, nosnippet',...extra}});}
 function cookie(sid,age=1209600){return `cw_session=${sid}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`;}
 const previousDate=date=>new Date(Date.parse(date)-86400000).toISOString().slice(0,10);
 export function completedThrough(date,state,now=new Date()){

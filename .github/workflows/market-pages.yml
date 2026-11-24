@@ -35,7 +35,7 @@ jobs:
       - name: Package website
         run: |
           mkdir -p _site
-          cp index.html app.js planner.js planner-ui.js CNAME .nojekyll _site/
+          cp index.html app.js planner.js planner-ui.js robots.txt CNAME .nojekyll _site/
       - name: Archive Pages artifact
         run: tar --dereference --hard-dereference -cf "$RUNNER_TEMP/artifact.tar" -C _site .
       - uses: actions/upload-artifact@v4

@@ -3,13 +3,13 @@ const html=fs.readFileSync('index.html','utf8'),code=fs.readFileSync('planner-ui
 const fixture={...require('../tests/fixtures/nvda-history.json'),quote:{price:130,time:1795450000000,session:'fixture'}};
 class Element{constructor(){this.value='';this.children=[];this.listeners={};}append(...x){this.children.push(...x);}replaceChildren(...x){this.children=x;}setAttribute(){}dispatchEvent(e){this.listeners[e.type]?.(e);}addEventListener(n,f){this.listeners[n]=f;}}
 const storage=new Map([['profit-plan-week-v1',JSON.stringify({symbol:'NVDA',date:'2020-01-01'})]]);
-function boot(){
+function boot(connected=true){
  const elements=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(x=>[x[1],new Element()]));
  for(const m of html.matchAll(/<input\b[^>]*id="([^"]+)"[^>]*>/g))elements[m[1]].value=m[0].match(/value="([^"]*)"/)?.[1]||'';
  elements['max-target-atr'].value='4';elements['stop-buffer'].value='.1';
  const events={},state={side:'long'};
  const read=()=>({...state,entry:Number(elements.entry.value),stop:Number(elements.stop.value),risk:Number(elements.risk.value),marginLimit:Number(elements.marginLimit.value),cap:100,feeIn:.05,feeOut:.05,slip:0,reserve:0,step:0,platformMax:20});
- const context={document:{getElementById:id=>elements[id],createElement:()=>new Element()},window:{PositionRisk:{read,calculate:require('../app')},addEventListener:(n,f)=>events[n]=f},TradePlanner:require('../planner'),localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},location:{origin:'https://test.workers.dev',hostname:'test.workers.dev'},URL,URLSearchParams,Intl,Date,Event,AbortController,setTimeout,clearTimeout,fetch:async p=>({ok:true,json:async()=>p==='/auth/status'?{connected:true,cloud:true}:fixture})};
+ const context={document:{getElementById:id=>elements[id],createElement:()=>new Element()},window:{PositionRisk:{read,calculate:require('../app')},addEventListener:(n,f)=>events[n]=f},TradePlanner:require('../planner'),localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},location:{origin:'https://test.workers.dev',hostname:'test.workers.dev'},URL,URLSearchParams,Intl,Date,Event,AbortController,setTimeout,clearTimeout,fetch:async p=>({ok:true,json:async()=>p==='/auth/status'?{connected,cloud:true}:fixture})};
  vm.runInNewContext(code,context);return {elements,events,state};
 }
 (async()=>{
@@ -27,5 +27,10 @@ function boot(){
  // Manual exits remain editable but cannot turn a failing horizontal-space screen into a pass.
  e.entry.value='140';e.entry.listeners.input({isTrusted:true});e.stop.value='130';e.stop.listeners.input({isTrusted:true});b.events['trade-input-change']();assert.match(e['market-status'].textContent,/空间偏小/);assert.equal(e['target-table'].hidden,false,'manual plan stays visible when automatic space screen fails');assert.match(e['market-error'].textContent,/0.37R/);assert(!e['market-error'].textContent.includes('达到1.5R'));assert.equal(e['take-profit-rows'].children[0].children[0].children[0].value,'144.25');
  b.state.side='short';b.events['trade-input-change']();assert(!Object.hasOwn(JSON.parse(storage.get('position-manual-values-v1')).fields,'stop'));
+ // Manual plans can be created and valued without authorization or recommendations.
+ storage.clear();b=boot(false);e=b.elements;await new Promise(r=>setImmediate(r));
+ e['manual-target-add'].listeners.click();let manualRow=e['take-profit-rows'].children[0];manualRow.children[0].children[0].value='142';manualRow.children[0].children[0].listeners.input();assert.match(e['plan-summary'].children[0].children[0].textContent,/计划净收益.*R/);assert.equal(e['target-table'].hidden,false);assert.equal(e['market-status'].textContent,'等待行情授权');
+ b=boot(false);e=b.elements;await new Promise(r=>setImmediate(r));assert.equal(e['take-profit-rows'].children[0].children[0].children[0].value,'142');assert.match(e['plan-summary'].children[0].children[0].textContent,/计划净收益.*R/);
+ e['manual-target-add'].listeners.click();e['manual-target-add'].listeners.click();e['manual-target-add'].listeners.click();assert.equal(e['take-profit-rows'].children.length,3);assert.equal(e['manual-target-add'].hidden,true);
  console.log('PASS: manual prices/budgets/targets persist through reload and analysis; restore market updates entry only; direction clears overrides');
 })();

@@ -119,7 +119,7 @@ function trailing(side,entry,initialStop,atr,extreme,currentStop,multiple){
 function priceDefaults(data,side,buffer=.1){
  if(![.1,.2,.3].includes(buffer))throw Error('请选择有效的ATR缓冲。');
  const entry=Number(data.quote?.price);if(!Number.isFinite(entry)||entry<=0)throw Error('缺少有效最新报价。');
- const bars=data.analysisDate?completedBars(data,data.analysisDate):data.bars.slice().sort((a,b)=>a.date.localeCompare(b.date));if(bars.length<14)throw Error('日线不足14根，无法生成止损参考。');
+ const bars=data.bars.slice().sort((a,b)=>a.date.localeCompare(b.date));if(bars.length<14)throw Error('日线不足14根，无法生成止损参考。');
  const recent=bars.slice(-10),dir=side==='short'?-1:1;
  const base=dir===1?Math.min(...recent.map(b=>b.low)):Math.max(...recent.map(b=>b.high));
  const atr=wilderATR(bars),stop=Math.round((base-dir*buffer*atr)*100)/100;

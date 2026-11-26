@@ -4,7 +4,9 @@ import {createRequire} from 'node:module';const require=createRequire(import.met
 const date='2026-11-23',now=t=>new Date(t);
 assert.equal(completedThrough(date,'AFTERNOON',now('2026-11-23T20:59:00Z')),'2026-11-22');
 assert.equal(completedThrough(date,'AFTER_HOURS_BEGIN',now('2026-11-23T21:01:00Z')),date);
-assert.equal(completedThrough(date,'UNKNOWN',now('2026-11-23T22:00:00Z')),'2026-11-22');
+assert.equal(completedThrough(date,'UNKNOWN',now('2026-11-23T22:00:00Z')),date,'regular close does not depend on market-state availability');
+assert.equal(completedThrough(date,'AFTERNOON',now('2026-11-23T21:00:00Z')),date,'stale state at 16:00 must not exclude completed session');
+assert.equal(completedThrough(date,'UNKNOWN',now('2026-11-23T20:59:00Z')),'2026-11-22');
 assert.equal(completedThrough(date,'AFTER_HOURS_END',now('2026-11-23T12:00:00Z')),'2026-11-22','pre-open state must not mark current session complete');
 assert.equal(completedThrough('2026-11-27','AFTER_HOURS_BEGIN',now('2026-11-27T18:05:00Z')),'2026-11-27','early close after-hours can be included');
 assert.equal(completedThrough('2026-07-15','AFTER_HOURS_BEGIN',now('2026-07-15T20:01:00Z')),'2026-07-15','summer daylight saving time');

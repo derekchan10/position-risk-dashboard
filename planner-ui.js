@@ -213,7 +213,7 @@ async function loadStock(options={}){
  try{
   await backendReady;
   if(!/^[A-Z][A-Z0-9.-]{0,14}$/.test(symbol))throw Error('请输入有效美股代码。');$('stock-symbol').value=symbol;
-  if(autoPrices)$('analysis-date').value=ny;
+  if(autoPrices){const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());$('analysis-date').value=today;$('analysis-date').max=today;}
   const requestedDate=$('analysis-date').value;
   if(!cloudBackend&&location.origin!=='http://localhost:8768')throw Error('请通过“打开富途线上看板”链接进入授权行情入口。');
   const response=await fetch('/api/futu/bars?'+new URLSearchParams({symbol,date:requestedDate,quote:'1'}),{signal:controller.signal});const j=await response.json();
